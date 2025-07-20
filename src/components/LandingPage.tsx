@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { User } from '@supabase/supabase-js';
+import { supabase } from '../supabaseClient';
 
 // CSS for hiding scrollbar
 const scrollbarStyles = `
@@ -353,11 +354,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   };
 
   const handleSignOut = async () => {
-    // This function is not defined in the original file, so it will cause an error.
-    // Assuming it's meant to be part of a Supabase context or similar.
-    // For now, commenting out to avoid breaking the file.
-    // await supabase.auth.signOut();
-    // window.location.reload();
+    await supabase.auth.signOut();
+    window.location.reload();
   };
 
   return (
