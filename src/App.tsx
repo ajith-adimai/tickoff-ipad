@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { User } from '@supabase/supabase-js';
 import Auth from './components/Auth';
-import Dashboard from './components/Dashboard';
-import { motion, AnimatePresence } from 'framer-motion';
+import LandingPage from './components/LandingPage';
+
+import { motion } from 'framer-motion';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -42,32 +43,27 @@ function App() {
     );
   }
 
+  // If not logged in, show Auth
+  if (!user) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+      >
+        <Auth />
+      </motion.div>
+    );
+  }
+
+  // If logged in, show LandingPage
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-500 to-primary-700">
-      <AnimatePresence mode="wait">
-        {!user ? (
-          <motion.div
-            key="auth"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Auth />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="dashboard"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Dashboard user={user} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <LandingPage 
+      user={user}
+      onGetStarted={() => {}}
+      onViewDashboard={() => {}}
+    />
   );
 }
 

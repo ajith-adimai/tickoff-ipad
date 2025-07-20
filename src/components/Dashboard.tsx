@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, Habit } from '../supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, LogOut, Calendar, Target, TrendingUp, CheckCircle } from 'lucide-react';
+import { Plus, LogOut, Calendar, Target, TrendingUp, CheckCircle, Home } from 'lucide-react';
 import HabitCard from './HabitCard';
 import AddHabitModal from './AddHabitModal';
 
 interface DashboardProps {
   user: User;
+  onViewLanding?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onViewLanding }) => {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -76,15 +77,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               <h1 className="text-2xl font-bold text-gray-800">{getGreeting()}, {user.email?.split('@')[0]}!</h1>
               <p className="text-gray-600">Let's make today productive</p>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleSignOut}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </motion.button>
+            <div className="flex items-center space-x-4">
+              {onViewLanding && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onViewLanding}
+                  className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  title="View Landing Page"
+                >
+                  <Home className="w-5 h-5" />
+                  <span className="hidden sm:inline">Home</span>
+                </motion.button>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleSignOut}
+                className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </motion.button>
+            </div>
           </div>
         </div>
       </div>
@@ -100,7 +115,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Today's Progress</p>
+                <p className="text-gray-600 text-sm">Everyday's Progress</p>
                 <p className="text-3xl font-bold text-primary-600">{getCompletedToday()}/{habits.length}</p>
               </div>
               <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">

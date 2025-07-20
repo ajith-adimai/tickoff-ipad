@@ -3,7 +3,11 @@ import { supabase } from '../supabaseClient';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 
-const Auth: React.FC = () => {
+interface AuthProps {
+  onBackToLanding?: () => void;
+}
+
+const Auth: React.FC<AuthProps> = ({ onBackToLanding }) => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -137,13 +141,23 @@ const Auth: React.FC = () => {
           </form>
 
           {/* Toggle */}
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-3">
             <button
               onClick={() => setIsSignUp(!isSignUp)}
               className="text-primary-600 hover:text-primary-700 font-medium transition-colors"
             >
               {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
             </button>
+            {onBackToLanding && (
+              <div>
+                <button
+                  onClick={onBackToLanding}
+                  className="text-gray-500 hover:text-gray-700 font-medium transition-colors"
+                >
+                  ← Back to Home
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>

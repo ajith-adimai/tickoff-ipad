@@ -52,4 +52,8 @@
   .modal-content {
     @apply bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto;
   }
+  
+  .grid-cols-15 {
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+  }
 }

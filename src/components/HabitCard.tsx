@@ -22,17 +22,24 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, onUpdate }) 
   const checkCompletionStatus = async () => {
     try {
       const dateString = selectedDate.toISOString().split('T')[0];
+      console.log('Checking completion for habit:', habit.id, 'date:', dateString);
+      
       const { data, error } = await supabase
         .from('habit_completions')
         .select('*')
         .eq('habit_id', habit.id)
-        .eq('date', dateString)
-        .single();
+        .eq('date', dateString);
 
-      if (error && error.code !== 'PGRST116') throw error;
-      setIsCompleted(!!data);
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('Completion data:', data);
+      setIsCompleted(data && data.length > 0);
     } catch (error) {
       console.error('Error checking completion status:', error);
+      // Don't throw the error, just log it to avoid breaking the UI
     }
   };
 
