@@ -3,17 +3,25 @@ import { Habit, supabase } from '../supabaseClient';
 import { motion } from 'framer-motion';
 import { CheckCircle, Circle, Trash2, Edit } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
+import * as LucideIcons from 'lucide-react';
 
 interface HabitCardProps {
-  habit: Habit;
+  habit: any; // allow dynamic fields from Supabase
   selectedDate: Date;
+  isCompleted: boolean;
   onUpdate: () => void;
+  onCompletionChange?: (habitId: number, completed: boolean) => void;
 }
 
-const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, onUpdate }) => {
-  const [isCompleted, setIsCompleted] = useState(false);
+const hideScrollbarStyles = `
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+`;
+
+const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted, onUpdate, onCompletionChange }) => {
   const [loading, setLoading] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     checkCompletionStatus();
@@ -22,164 +30,167 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, onUpdate }) 
   const checkCompletionStatus = async () => {
     try {
       const dateString = selectedDate.toISOString().split('T')[0];
-      console.log('Checking completion for habit:', habit.id, 'date:', dateString);
-      
       const { data, error } = await supabase
         .from('habit_completions')
         .select('*')
         .eq('habit_id', habit.id)
         .eq('date', dateString);
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-      
-      console.log('Completion data:', data);
-      setIsCompleted(data && data.length > 0);
-    } catch (error) {
-      console.error('Error checking completion status:', error);
-      // Don't throw the error, just log it to avoid breaking the UI
-    }
+      // setIsCompleted(!!(data && data.length > 0)); // This line is removed as per the edit hint
+    } catch {}
   };
 
-  const toggleCompletion = async () => {
+  // Map icon string to Lucide icon component
+  const Icon = (LucideIcons as any)[habit.icon] || LucideIcons.Activity;
+  // Use color hex from habit.color
+  const iconBgStyle = habit.color ? { background: habit.color } : { background: '#FFD600' };
+  // Streak fallback
+  const streak = habit.streak ?? 0;
+
+  // Year progress grid logic (static fallback if no progress data)
+  const completionsSet = new Set((habit.completions || []).map((d: string) => d.split('T')[0])); // ensure 'YYYY-MM-DD' format
+  console.log('Habit completions for grid:', habit.title, Array.from(completionsSet));
+  // Find the first Monday of the year
+  const year = new Date().getFullYear();
+  const startOfYear = new Date(year, 0, 1);
+  const firstMonday = new Date(startOfYear);
+  while (firstMonday.getDay() !== 1) { // 1 = Monday
+    firstMonday.setDate(firstMonday.getDate() + 1);
+  }
+  const weekCount = 52;
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  const isFutureDate = selectedDate > new Date();
+
+  // Action buttons
+  const handleToggleCompletion = async () => {
     setLoading(true);
     try {
       const dateString = selectedDate.toISOString().split('T')[0];
-      
-      if (isCompleted) {
-        // Remove completion
-        const { error } = await supabase
-          .from('habit_completions')
-          .delete()
-          .eq('habit_id', habit.id)
-          .eq('date', dateString);
-        
-        if (error) throw error;
-        setIsCompleted(false);
-      } else {
-        // Add completion
-        const { error } = await supabase
-          .from('habit_completions')
-          .insert({
+      if (!isCompleted) {
+        // Mark as complete: insert row
+        await supabase.from('habit_completions').insert([
+          {
             habit_id: habit.id,
             user_id: habit.user_id,
             date: dateString,
             completed_at: new Date().toISOString(),
-          });
-        
-        if (error) throw error;
-        setIsCompleted(true);
+          }
+        ]);
+      } else {
+        // Mark as incomplete: delete row
+        await supabase.from('habit_completions')
+          .delete()
+          .eq('habit_id', habit.id)
+          .eq('user_id', habit.user_id)
+          .eq('date', dateString);
       }
-      
-      onUpdate();
-    } catch (error) {
-      console.error('Error toggling completion:', error);
+      if (onCompletionChange) onCompletionChange(habit.id, !isCompleted);
+      if (onUpdate) onUpdate(); // always refetch completions
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteHabit = async () => {
-    // if (!confirm('Are you sure you want to delete this habit?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('habits')
-        .delete()
-        .eq('id', habit.id);
-      
-      if (error) throw error;
-      onUpdate();
-    } catch (error) {
-      console.error('Error deleting habit:', error);
-    }
-  };
-
-  const getFrequencyText = (frequency: string) => {
-    switch (frequency) {
-      case 'daily': return 'Daily';
-      case 'weekly': return 'Weekly';
-      case 'monthly': return 'Monthly';
-      default: return frequency;
-    }
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setTimeout(async () => {
+      await supabase.from('habits').delete().eq('id', habit.id);
+      if (onUpdate) onUpdate();
+    }, 400); // match animation duration
   };
 
   return (
     <motion.div
       layout
-      className="habit-card"
-      onHoverStart={() => setShowActions(true)}
-      onHoverEnd={() => setShowActions(false)}
+      className="bg-gray-700 rounded-xl p-4 md:p-6 shadow-lg"
+      initial={{ opacity: 1, scale: 1 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.4 } }}
+      transition={{ duration: 0.4 }}
+      style={{ pointerEvents: isDeleting ? 'none' : undefined }}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4 flex-1">
+      <style>{hideScrollbarStyles}</style>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center" style={iconBgStyle}>
+            <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-white text-base md:text-lg">{habit.title}</h3>
+            <p className="text-sm md:text-base text-gray-400">Streak: {streak} days</p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button className="p-2 md:p-3 hover:bg-gray-600 rounded-lg transition-colors" title="Add Note">
+            <LucideIcons.Star className="w-4 h-4 md:w-5 md:h-5 text-gray-300" />
+          </button>
+          <button
+            onClick={handleToggleCompletion}
+            className="p-2 md:p-3 hover:bg-gray-600 rounded-lg transition-all duration-200 hover:scale-110"
+            title={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+            disabled={loading || isFutureDate}
+          >
+            <LucideIcons.CheckCircle className={`w-5 h-5 md:w-6 md:h-6 transition-colors duration-200 ${isCompleted ? 'text-yellow-500' : 'text-gray-400'} ${isFutureDate ? 'opacity-50' : ''}`} />
+          </button>
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={toggleCompletion}
-            disabled={loading}
-            className={`habit-button ${isCompleted ? 'completed' : ''} ${
-              loading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            onClick={handleDelete}
+            className="p-2 md:p-3 hover:bg-red-600 rounded-lg transition-colors"
+            title="Delete habit"
+            disabled={isDeleting}
           >
-            {isCompleted ? (
-              <CheckCircle className="w-6 h-6" />
-            ) : (
-              <Circle className="w-6 h-6 text-gray-400" />
-            )}
+            <Trash2 className="w-5 h-5 md:w-6 md:h-6 text-red-400" />
           </motion.button>
-
-          <div className="flex-1">
-            <h3 className={`text-lg font-semibold ${
-              isCompleted ? 'line-through text-gray-500' : 'text-gray-800'
-            }`}>
-              {habit.title}
-            </h3>
-            {habit.description && (
-              <p className={`text-sm ${
-                isCompleted ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                {habit.description}
-              </p>
-            )}
-            <div className="flex items-center space-x-2 mt-1">
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-                {getFrequencyText(habit.frequency)}
-              </span>
-            </div>
+        </div>
+      </div>
+      {/* Progress Grid */}
+      <div className="bg-gray-800 rounded-lg p-3">
+        <p className="text-xs md:text-sm text-gray-400 mb-2">Year Progress (Mon-Sun, each column is a week)</p>
+        <div className="overflow-x-auto hide-scrollbar" style={{ maxWidth: '100%' }}>
+          <div className="flex flex-col space-y-1" style={{ minWidth: 'max-content' }}>
+            {dayNames.map((dayName, row) => {
+              const weekDays = [];
+              for (let col = 0; col < weekCount; col++) {
+                // Calculate the Monday of this week
+                const weekStart = new Date(firstMonday);
+                weekStart.setDate(firstMonday.getDate() + col * 7);
+                // Calculate the date for this cell (weekStart + row offset)
+                const cellDate = new Date(weekStart);
+                cellDate.setDate(weekStart.getDate() + row);
+                const cellDateString = cellDate.toISOString().split('T')[0];
+                console.log('Grid cell:', habit.title, cellDateString, 'Completed:', completionsSet.has(cellDateString));
+                const isFuture = cellDate > new Date();
+                const isPastOrToday = cellDate <= new Date();
+                const isDayCompleted = completionsSet.has(cellDateString);
+                weekDays.push(
+                  <div
+                    key={`${col}-${row}`}
+                    className="rounded-sm"
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      minWidth: '8px',
+                      minHeight: '8px',
+                      display: 'inline-block',
+                      background: isFuture
+                        ? '#4B5563' // gray-600
+                        : isDayCompleted
+                        ? (habit.color || '#FFD600') // fallback to yellow if undefined
+                        : '#374151', // gray-700
+                    }}
+                    title={`${dayName} ${cellDateString} - ${isFuture ? 'Future' : isDayCompleted ? 'Completed' : 'Not completed'}`}
+                  />
+                );
+              }
+              return (
+                <div key={row} className="flex gap-1">
+                  {weekDays}
+                </div>
+              );
+            })}
           </div>
         </div>
-
-        <AnimatePresence>
-          {showActions && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="flex items-center space-x-2"
-            >
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Edit habit"
-              >
-                <Edit className="w-4 h-4" />
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={deleteHabit}
-                className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                title="Delete habit"
-              >
-                <Trash2 className="w-4 h-4" />
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </motion.div>
   );

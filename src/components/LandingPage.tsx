@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   CheckCircle, 
@@ -14,11 +14,16 @@ import {
   Smartphone,
   Zap,
   LogOut,
-  Home
+  Home,
+  LayoutGrid,
+  Plus
 } from 'lucide-react';
 
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
+import AddHabitModal from './AddHabitModal';
+import HabitCard from './HabitCard';
+// Remove all dnd-kit imports and logic
 
 // CSS for hiding scrollbar
 const scrollbarStyles = `
@@ -70,7 +75,7 @@ const TopBar: React.FC = () => {
 };
 
 // DaySelector Widget Component
-const DaySelector: React.FC<{ completedHabits: { [key: number]: boolean } }> = ({ completedHabits }) => {
+const DaySelector: React.FC<{ completions: { [date: string]: Set<number> }, totalHabits: number, selectedDate: Date, onDateChange: (date: Date) => void }> = ({ completions, totalHabits, selectedDate, onDateChange }) => {
   const getCurrentWeek = () => {
     const today = new Date();
     const currentDayOfWeek = today.getDay();
@@ -101,10 +106,7 @@ const DaySelector: React.FC<{ completedHabits: { [key: number]: boolean } }> = (
   const days = getCurrentWeek();
 
   // Count completed habits for today
-  const today = new Date();
-  const todayString = today.toDateString();
-  const completedHabitsCount = Object.values(completedHabits).filter(completed => completed).length;
-
+  const todayString = new Date().toDateString();
   return (
     <div className="bg-gradient-to-r from-green-600 to-blue-600 rounded-xl p-4 md:p-6 mb-6 shadow-lg">
       <div className="flex items-center space-x-3 mb-4">
@@ -126,26 +128,36 @@ const DaySelector: React.FC<{ completedHabits: { [key: number]: boolean } }> = (
       <div className="flex justify-between">
         {days.map((day) => {
           const isToday = day.fullDate.toDateString() === todayString;
-          
-          if (isToday && completedHabitsCount > 0) {
-            const totalHabits = 3;
-            const progressPercentage = (completedHabitsCount / totalHabits) * 100;
-            const strokeDasharray = 2 * Math.PI * 16; // circumference of circle with radius 16
-            const strokeDashoffset = strokeDasharray - (strokeDasharray * progressPercentage / 100);
-            
-            return (
-              <div key={day.date} className="relative w-8 h-8 md:w-10 md:h-10">
-                {/* Background circle */}
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gray-500 flex items-center justify-center text-sm md:text-base font-medium text-white">
-                  {day.date}
-                </div>
-                {/* Progress circle overlay */}
-                <svg className="absolute inset-0 w-8 h-8 md:w-10 md:h-10 transform -rotate-90" viewBox="0 0 32 32">
+          const isSelected = day.fullDate.toDateString() === selectedDate.toDateString();
+          const dateString = day.fullDate.toDateString();
+          const completedHabitsCount = completions[dateString]?.size || 0;
+          const progressPercentage = totalHabits > 0 ? (completedHabitsCount / totalHabits) * 100 : 0;
+          const strokeDasharray = 2 * Math.PI * 16;
+          const strokeDashoffset = strokeDasharray - (strokeDasharray * progressPercentage / 100);
+          return (
+            <button
+              key={day.date}
+              className={`relative w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-base font-medium transition-all duration-200 ${
+                isSelected
+                  ? 'bg-gray-500 text-white border-2 border-yellow-400'
+                  : isToday
+                  ? 'bg-gray-500 text-white'
+                  : 'bg-gray-600 text-white hover:bg-gray-500'
+              }`}
+              onClick={() => {
+                if (day.fullDate <= new Date()) onDateChange(day.fullDate);
+              }}
+              disabled={day.fullDate > new Date()}
+              style={{ overflow: 'visible' }}
+            >
+              {day.date}
+              {totalHabits > 0 && progressPercentage > 0 && (
+                <svg className="absolute inset-0 w-8 h-8 md:w-10 md:h-10 pointer-events-none" viewBox="0 0 32 32">
                   <circle
                     cx="16"
                     cy="16"
                     r="14"
-                    stroke="rgb(234 179 8)" // yellow-500
+                    stroke="rgb(234 179 8)"
                     strokeWidth="2"
                     fill="none"
                     strokeDasharray={strokeDasharray}
@@ -153,148 +165,10 @@ const DaySelector: React.FC<{ completedHabits: { [key: number]: boolean } }> = (
                     className="transition-all duration-300"
                   />
                 </svg>
-              </div>
-            );
-          }
-          
-          return (
-            <button
-              key={day.date}
-              className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-base font-medium transition-all duration-200 ${
-                isToday
-                  ? 'bg-gray-500 text-white'
-                  : 'bg-gray-600 text-white hover:bg-gray-500'
-              }`}
-            >
-              {day.date}
+              )}
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-};
-
-// HabitCard Widget Component
-const HabitCard: React.FC<{ habit: any; onHabitToggle?: (habitId: number, completed: boolean) => void }> = ({ habit, onHabitToggle }) => {
-  const [isCompleted, setIsCompleted] = useState(habit.completed);
-
-  const getColorClass = (color: string) => {
-    switch (color) {
-      case 'yellow': return 'bg-yellow-500';
-      case 'red': return 'bg-red-500';
-      case 'green': return 'bg-green-500';
-      default: return 'bg-blue-500';
-    }
-  };
-
-  const getProgressColor = (color: string) => {
-    switch (color) {
-      case 'yellow': return 'bg-yellow-400';
-      case 'red': return 'bg-red-400';
-      case 'green': return 'bg-green-400';
-      default: return 'bg-blue-400';
-    }
-  };
-
-  const getTickColor = (color: string) => {
-    switch (color) {
-      case 'yellow': return 'text-yellow-500';
-      case 'red': return 'text-red-500';
-      case 'green': return 'text-green-500';
-      default: return 'text-blue-500';
-    }
-  };
-
-  const handleToggleCompletion = () => {
-    const newCompletedState = !isCompleted;
-    setIsCompleted(newCompletedState);
-    if (onHabitToggle) {
-      onHabitToggle(habit.id, newCompletedState);
-    }
-  };
-
-  const Icon = habit.icon;
-
-  return (
-    <div className="bg-gray-700 rounded-xl p-4 md:p-6 shadow-lg">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-3">
-          <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full ${getColorClass(habit.color)} flex items-center justify-center`}>
-            <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-white text-base md:text-lg">{habit.title}</h3>
-            <p className="text-sm md:text-base text-gray-400">Streak: {habit.streak} days</p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button className="p-2 md:p-3 hover:bg-gray-600 rounded-lg transition-colors" title="Add Note">
-            <Star className="w-4 h-4 md:w-5 md:h-5" />
-          </button>
-          <button 
-            onClick={handleToggleCompletion}
-            className="p-2 md:p-3 hover:bg-gray-600 rounded-lg transition-all duration-200 hover:scale-110"
-            title={isCompleted ? "Mark as incomplete" : "Mark as complete"}
-          >
-            <CheckCircle className={`w-5 h-5 md:w-6 md:h-6 transition-colors duration-200 ${
-              isCompleted ? getTickColor(habit.color) : 'text-gray-400'
-            }`} />
-          </button>
-        </div>
-      </div>
-      
-      {/* Progress Grid */}
-      <div className="bg-gray-800 rounded-lg p-3">
-        <p className="text-xs md:text-sm text-gray-400 mb-2">Year Progress (Jan 1 - Today)</p>
-        <div className="overflow-x-auto progress-grid-scroll">
-          <div className="space-y-1" style={{ minWidth: 'max-content' }}>
-            {(() => {
-              const today = new Date();
-              const startOfYear = new Date(today.getFullYear(), 0, 1); // January 1st
-              const daysInYear = Math.ceil((today.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
-              const todayIndex = daysInYear - 1; // 0-based index for today
-
-              // Create 7 rows
-              const rows = [];
-              for (let row = 0; row < 7; row++) {
-                const weekDays = [];
-                for (let week = 0; week < 52; week++) {
-                  const dayIndex = week * 7 + row;
-                  const isFuture = dayIndex > daysInYear - 1;
-                  const isToday = dayIndex === todayIndex;
-                  // Only fill current date square with yellow if completed
-                  const isDayCompleted = isCompleted && isToday;
-                  weekDays.push(
-                    <div
-                      key={`${week}-${row}`}
-                      className={`rounded-sm ${
-                        isFuture
-                          ? 'bg-gray-600'
-                          : isDayCompleted
-                            ? getProgressColor(habit.color)
-                            : 'bg-gray-700'
-                      }`}
-                      style={{
-                        width: '8px',
-                        height: '8px',
-                        minWidth: '8px',
-                        minHeight: '8px'
-                      }}
-                      title={`Day ${dayIndex + 1} - ${isFuture ? 'Future' : isDayCompleted ? 'Completed' : 'Not completed'}`}
-                    />
-                  );
-                }
-                rows.push(
-                  <div key={row} className="flex gap-1">
-                    {weekDays}
-                  </div>
-                );
-              }
-              return rows;
-            })()}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -307,50 +181,115 @@ function getGreeting() {
   return 'Good evening';
 }
 
+const Footer: React.FC<{ onAdd: () => void; onStreaks: () => void }> = ({ onAdd, onStreaks }) => (
+  <div className="fixed bottom-0 left-0 w-full flex items-center justify-between px-8 py-4 bg-black border-t border-gray-800 z-50">
+    {/* Dashboard/Home */}
+    <button className="flex flex-col items-center text-yellow-400 hover:text-yellow-300 transition-colors" title="Dashboard/Home">
+      <LayoutGrid className="w-7 h-7" />
+    </button>
+    {/* Add (+) */}
+    <button
+      className="flex items-center justify-center w-16 h-16 rounded-full bg-white text-black shadow-lg border-4 border-black -mt-10 hover:bg-gray-200 transition-all text-3xl"
+      style={{ position: 'relative', top: '-24px' }}
+      onClick={onAdd}
+      aria-label="Add new event"
+    >
+      <Plus className="w-8 h-8" />
+    </button>
+    {/* Streaks/History */}
+    <button
+      className="flex flex-col items-center text-pink-400 hover:text-pink-300 transition-colors"
+      onClick={onStreaks}
+      aria-label="View streaks/history"
+    >
+      <TrendingUp className="w-7 h-7" />
+    </button>
+  </div>
+);
+
+// Remove all dnd-kit imports and logic
+
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard, user }) => {
   console.log('LandingPage component rendered with user:', user);
   
-  const [completedHabits, setCompletedHabits] = useState<{ [key: number]: boolean }>({
-    1: true,  // Go To Gym - initially completed
-    2: true,  // Do Skincare - initially completed  
-    3: true   // Early Rise - initially completed
-  });
+  const [completions, setCompletions] = useState<{ [date: string]: Set<number> }>({});
+  const [habitCompletions, setHabitCompletions] = useState<{ [habitId: number]: string[] }>({});
 
-  const habits = [
-    {
-      id: 1,
-      title: 'Go To Gym',
-      icon: Dumbbell,
-      streak: 1,
-      completed: true,
-      color: 'yellow',
-      progress: Array.from({ length: 30 }, (_, i) => i < 20)
-    },
-    {
-      id: 2,
-      title: 'Do Skincare',
-      icon: Palette,
-      streak: 1,
-      completed: true,
-      color: 'red',
-      progress: Array.from({ length: 30 }, (_, i) => i < 18)
-    },
-    {
-      id: 3,
-      title: 'Early Rise',
-      icon: Sun,
-      streak: 2,
-      completed: true,
-      color: 'green',
-      progress: Array.from({ length: 30 }, (_, i) => i < 25)
+  const [habits, setHabits] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  useEffect(() => {
+    if (!user) return;
+    let subscription: any;
+    const fetchHabits = async () => {
+      const { data, error } = await supabase
+        .from('habits')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (!error) setHabits(data || []);
+    };
+    fetchHabits();
+    subscription = supabase
+      .channel('public:habits')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'habits', filter: `user_id=eq.${user.id}` }, () => {
+        fetchHabits();
+      })
+      .subscribe();
+    return () => {
+      if (subscription) supabase.removeChannel(subscription);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !selectedDate) return;
+    const fetchCompletions = async () => {
+      const dateString = selectedDate.toDateString();
+      const { data, error } = await supabase
+        .from('habit_completions')
+        .select('habit_id')
+        .eq('user_id', user.id)
+        .eq('date', dateString);
+      if (!error) {
+        setCompletions(prev => ({ ...prev, [dateString]: new Set((data || []).map((row: any) => row.habit_id)) }));
+      }
+    };
+    fetchCompletions();
+  }, [user, selectedDate]);
+
+  // Move fetchCompletionsForYear and its useEffect to the top level, not inside the render
+  const fetchCompletionsForYear = async () => {
+    if (!user) return;
+    const year = new Date().getFullYear();
+    const startOfYear = new Date(year, 0, 1).toISOString().split('T')[0];
+    const endOfYear = new Date(year, 11, 31).toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('habit_completions')
+      .select('habit_id, date')
+      .eq('user_id', user.id)
+      .gte('date', startOfYear)
+      .lte('date', endOfYear);
+    if (!error) {
+      const grouped: { [habitId: number]: string[] } = {};
+      (data || []).forEach((row: any) => {
+        if (!grouped[row.habit_id]) grouped[row.habit_id] = [];
+        grouped[row.habit_id].push(row.date);
+      });
+      setHabitCompletions(grouped);
     }
-  ];
+  };
+  useEffect(() => {
+    fetchCompletionsForYear();
+  }, [user, habits]);
 
   const handleHabitToggle = (habitId: number, completed: boolean) => {
-    setCompletedHabits(prev => ({
-      ...prev,
-      [habitId]: completed
-    }));
+    setCompletions(prev => {
+      const date = new Date().toDateString();
+      const set = new Set(prev[date] || []);
+      if (completed) set.add(habitId);
+      else set.delete(habitId);
+      return { ...prev, [date]: set };
+    });
   };
 
   const handleSignOut = async () => {
@@ -358,8 +297,23 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
     window.location.reload();
   };
 
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showStreaks, setShowStreaks] = useState(false); // Placeholder for streaks/history modal
+
+  const fetchHabits = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (!error) setHabits(data || []);
+  };
+
+  // Remove all dnd-kit imports and logic
+
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white relative pb-32">
       <style>{scrollbarStyles}</style>
       {/* Header - Dashboard style */}
       <div className="bg-white shadow-sm border-b border-gray-200">
@@ -391,21 +345,69 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
             <TopBar />
             
             {/* DaySelector Widget */}
-            <DaySelector completedHabits={completedHabits} />
+            <DaySelector
+              completions={completions}
+              totalHabits={habits.length}
+              selectedDate={selectedDate}
+              onDateChange={(date: Date) => setSelectedDate(date)}
+            />
 
             {/* Habit Cards */}
+            {/* Remove all dnd-kit imports and logic */}
             <div className="space-y-4">
-              {habits.map((habit) => (
-                <HabitCard 
-                  key={habit.id} 
-                  habit={habit} 
-                  onHabitToggle={handleHabitToggle}
-                />
-              ))}
+              {habits.length === 0 ? (
+                <div className="text-center text-gray-400">No habits yet. Add your first habit!</div>
+              ) : (
+                habits.map((habit) => (
+                  <HabitCard
+                    key={habit.id}
+                    habit={{ ...habit, completions: habitCompletions[habit.id] || [] }}
+                    selectedDate={selectedDate}
+                    isCompleted={!!completions[selectedDate.toDateString()]?.has(habit.id)}
+                    onUpdate={() => {
+                      if (!user) return;
+                      fetchHabits();
+                      fetchCompletionsForYear();
+                    }}
+                    onCompletionChange={(habitId: number, completed: boolean) => {
+                      setCompletions(prev => {
+                        const date = selectedDate.toDateString();
+                        const set = new Set(prev[date] || []);
+                        if (completed) set.add(habitId);
+                        else set.delete(habitId);
+                        return { ...prev, [date]: set };
+                      });
+                      fetchCompletionsForYear();
+                    }}
+                  />
+                ))
+              )}
             </div>
           </div>
         </div>
       </section>
+      {/* Footer */}
+      <Footer onAdd={() => setShowAddModal(true)} onStreaks={() => setShowStreaks(true)} />
+      {/* AddHabitModal */}
+      {showAddModal && user && (
+        <AddHabitModal
+          onClose={() => setShowAddModal(false)}
+          onAdd={fetchHabits}
+          user={user}
+        />
+      )}
+      {/* Streaks/History Modal Placeholder */}
+      {showStreaks && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 text-black max-w-md w-full relative">
+            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800" onClick={() => setShowStreaks(false)}>
+              ×
+            </button>
+            <h2 className="text-2xl font-bold mb-4">Streaks & History</h2>
+            <p>Coming soon: View all your past streaks and completed events here!</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -209,6 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onViewLanding }) => {
                   <HabitCard 
                     habit={habit} 
                     selectedDate={selectedDate}
+                    isCompleted={false}
                     onUpdate={fetchHabits}
                   />
                 </motion.div>
