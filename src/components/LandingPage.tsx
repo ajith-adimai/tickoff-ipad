@@ -217,6 +217,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
 
   const [habits, setHabits] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [editingHabit, setEditingHabit] = useState<any | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -276,6 +277,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
         grouped[row.habit_id].push(row.date);
       });
       setHabitCompletions(grouped);
+      setTimeout(() => {
+        console.log('Updated completions for all habits:', grouped);
+      }, 500);
     }
   };
   useEffect(() => {
@@ -379,6 +383,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                       });
                       fetchCompletionsForYear();
                     }}
+                    onEdit={setEditingHabit}
                   />
                 ))
               )}
@@ -389,11 +394,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
       {/* Footer */}
       <Footer onAdd={() => setShowAddModal(true)} onStreaks={() => setShowStreaks(true)} />
       {/* AddHabitModal */}
-      {showAddModal && user && (
+      {(showAddModal && user && !editingHabit) && (
         <AddHabitModal
           onClose={() => setShowAddModal(false)}
           onAdd={fetchHabits}
           user={user}
+        />
+      )}
+      {editingHabit && user && (
+        <AddHabitModal
+          onClose={() => setEditingHabit(null)}
+          onAdd={() => {
+            fetchHabits();
+            fetchCompletionsForYear();
+            setEditingHabit(null);
+          }}
+          user={user}
+          habit={editingHabit}
+          editMode={true}
         />
       )}
       {/* Streaks/History Modal Placeholder */}

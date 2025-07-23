@@ -9,6 +9,8 @@ interface AddHabitModalProps {
   onClose: () => void;
   onAdd: () => void;
   user: User;
+  habit?: any;
+  editMode?: boolean;
 }
 
 const hideScrollbarStyles = `
@@ -16,24 +18,24 @@ const hideScrollbarStyles = `
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 `;
 
-const AddHabitModal: React.FC<AddHabitModalProps> = ({ onClose, onAdd, user }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [color, setColor] = useState('#FFD600'); // default to yellow hex
-  const [icon, setIcon] = useState('Run'); // default to Activity (Run)
-  const [frequencyType, setFrequencyType] = useState('everyday');
-  const [daysOfWeek, setDaysOfWeek] = useState<string[]>([]);
-  const [daysOfMonth, setDaysOfMonth] = useState<number[]>([]);
-  const [periodType, setPeriodType] = useState<'week'|'month'>('week');
-  const [daysPerPeriod, setDaysPerPeriod] = useState(1);
+const AddHabitModal: React.FC<AddHabitModalProps> = ({ onClose, onAdd, user, habit, editMode }) => {
+  const [title, setTitle] = useState(habit?.title || '');
+  const [description, setDescription] = useState(habit?.description || '');
+  const [color, setColor] = useState(habit?.color || '#FFD600'); // default to yellow hex
+  const [icon, setIcon] = useState(habit?.icon || 'Run'); // default to Activity (Run)
+  const [frequencyType, setFrequencyType] = useState(habit?.frequency?.type || 'everyday');
+  const [daysOfWeek, setDaysOfWeek] = useState<string[]>(habit?.frequency?.days || []);
+  const [daysOfMonth, setDaysOfMonth] = useState<number[]>(habit?.frequency?.days || []);
+  const [periodType, setPeriodType] = useState(habit?.frequency?.period?.type || 'week');
+  const [daysPerPeriod, setDaysPerPeriod] = useState(habit?.frequency?.period?.days || 1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showIconGrid, setShowIconGrid] = useState(false);
-  const [checklistEnabled, setChecklistEnabled] = useState(false);
-  const [reminderEnabled, setReminderEnabled] = useState(false);
-  const [reminderTime, setReminderTime] = useState('09:00');
-  const [reminderDays, setReminderDays] = useState<string[]>([]);
+  const [checklistEnabled, setChecklistEnabled] = useState(!!habit?.checklist);
+  const [reminderEnabled, setReminderEnabled] = useState(!!habit?.reminder);
+  const [reminderTime, setReminderTime] = useState(habit?.reminder?.time || '09:00');
+  const [reminderDays, setReminderDays] = useState<string[]>(habit?.reminder?.days || []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,16 +64,20 @@ const AddHabitModal: React.FC<AddHabitModalProps> = ({ onClose, onAdd, user }) =
         reminder,
       };
 
-      console.log('Attempting to insert habit:', habitData);
-
-      const { data, error: insertError } = await supabase
-        .from('habits')
-        .insert(habitData)
-        .select();
-
-      if (insertError) {
-        console.error('Supabase error:', insertError);
-        throw insertError;
+      if (editMode && habit?.id) {
+        // Update existing habit
+        const { error: updateError } = await supabase
+          .from('habits')
+          .update(habitData)
+          .eq('id', habit.id);
+        if (updateError) throw updateError;
+      } else {
+        // Insert new habit
+        const { error: insertError } = await supabase
+          .from('habits')
+          .insert(habitData)
+          .select();
+        if (insertError) throw insertError;
       }
 
       setTitle('');
@@ -90,8 +96,8 @@ const AddHabitModal: React.FC<AddHabitModalProps> = ({ onClose, onAdd, user }) =
       onAdd();
       onClose();
     } catch (error: any) {
-      console.error('Error adding habit:', error);
-      setError(error.message || 'Failed to add habit. Please try again.');
+      console.error('Error saving habit:', error);
+      setError(error.message || 'Failed to save habit. Please try again.');
     } finally {
       setLoading(false);
     }

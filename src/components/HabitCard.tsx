@@ -11,6 +11,7 @@ interface HabitCardProps {
   isCompleted: boolean;
   onUpdate: () => void;
   onCompletionChange?: (habitId: number, completed: boolean) => void;
+  onEdit?: (habit: any) => void;
 }
 
 const hideScrollbarStyles = `
@@ -18,7 +19,7 @@ const hideScrollbarStyles = `
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 `;
 
-const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted, onUpdate, onCompletionChange }) => {
+const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted, onUpdate, onCompletionChange, onEdit }) => {
   const [loading, setLoading] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -52,14 +53,28 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
   // Find the first Monday of the year
   const year = new Date().getFullYear();
   const startOfYear = new Date(year, 0, 1);
-  const firstMonday = new Date(startOfYear);
-  while (firstMonday.getDay() !== 1) { // 1 = Monday
-    firstMonday.setDate(firstMonday.getDate() + 1);
-  }
+  let firstMonday = new Date(startOfYear);
+  const day = firstMonday.getDay();
+  const diff = (day === 0 ? 1 : 8 - day) % 7; // 0=Sunday, 1=Monday, ..., 6=Saturday
+  firstMonday.setDate(firstMonday.getDate() + diff);
   const weekCount = 52;
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  const isFutureDate = selectedDate > new Date();
+  const todayString = new Date().toISOString().split('T')[0];
+
+  console.log('First Monday:', firstMonday.toISOString().split('T')[0]);
+  for (let col = 0; col < weekCount; col++) {
+    const weekStart = new Date(firstMonday);
+    weekStart.setDate(firstMonday.getDate() + col * 7);
+    for (let row = 0; row < 7; row++) {
+      const cellDate = new Date(weekStart);
+      cellDate.setDate(weekStart.getDate() + row);
+      const cellDateString = cellDate.toISOString().split('T')[0];
+      if (col === 0) {
+        console.log(`Row ${row} (should be ${dayNames[row]}):`, cellDateString);
+      }
+    }
+  }
 
   // Action buttons
   const handleToggleCompletion = async () => {
@@ -85,7 +100,11 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
           .eq('date', dateString);
       }
       if (onCompletionChange) onCompletionChange(habit.id, !isCompleted);
-      if (onUpdate) onUpdate(); // always refetch completions
+      if (onUpdate) await onUpdate(); // always refetch completions
+      // Debug log after update
+      setTimeout(() => {
+        console.log('Habit completions for grid (after update):', habit.title, Array.from((habit.completions || []).map((d: string) => d.split('T')[0])));
+      }, 500);
     } finally {
       setLoading(false);
     }
@@ -98,6 +117,8 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
       if (onUpdate) onUpdate();
     }, 400); // match animation duration
   };
+
+  const isFutureDate = selectedDate > new Date();
 
   return (
     <motion.div
@@ -132,6 +153,13 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
           >
             <LucideIcons.CheckCircle className={`w-5 h-5 md:w-6 md:h-6 transition-colors duration-200 ${isCompleted ? 'text-yellow-500' : 'text-gray-400'} ${isFutureDate ? 'opacity-50' : ''}`} />
           </button>
+          <button
+            onClick={() => onEdit && onEdit(habit)}
+            className="p-2 md:p-3 hover:bg-blue-600 rounded-lg transition-colors"
+            title="Edit habit"
+          >
+            <Edit className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
+          </button>
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
@@ -152,16 +180,14 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
             {dayNames.map((dayName, row) => {
               const weekDays = [];
               for (let col = 0; col < weekCount; col++) {
-                // Calculate the Monday of this week
+                // For each week, weekStart is the Monday of that week
                 const weekStart = new Date(firstMonday);
                 weekStart.setDate(firstMonday.getDate() + col * 7);
-                // Calculate the date for this cell (weekStart + row offset)
+                // Row 0 is Monday, row 1 is Tuesday, ..., row 6 is Sunday
                 const cellDate = new Date(weekStart);
                 cellDate.setDate(weekStart.getDate() + row);
                 const cellDateString = cellDate.toISOString().split('T')[0];
-                console.log('Grid cell:', habit.title, cellDateString, 'Completed:', completionsSet.has(cellDateString));
-                const isFuture = cellDate > new Date();
-                const isPastOrToday = cellDate <= new Date();
+                const isFuture = cellDateString > todayString;
                 const isDayCompleted = completionsSet.has(cellDateString);
                 weekDays.push(
                   <div
@@ -176,7 +202,7 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
                       background: isFuture
                         ? '#4B5563' // gray-600
                         : isDayCompleted
-                        ? (habit.color || '#FFD600') // fallback to yellow if undefined
+                        ? (habit.color || '#FFD600')
                         : '#374151', // gray-700
                     }}
                     title={`${dayName} ${cellDateString} - ${isFuture ? 'Future' : isDayCompleted ? 'Completed' : 'Not completed'}`}
