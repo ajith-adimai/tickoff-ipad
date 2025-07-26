@@ -123,12 +123,12 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
   return (
     <motion.div
       layout
-      className="bg-gray-700 rounded-xl p-4 md:p-6 shadow-lg"
+      className="bg-gray-700 rounded-xl p-4 md:p-6 shadow-lg w-full"
+      style={{ pointerEvents: isDeleting ? 'none' : undefined, position: 'relative' }}
       initial={{ opacity: 1, scale: 1 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.4 } }}
       transition={{ duration: 0.4 }}
-      style={{ pointerEvents: isDeleting ? 'none' : undefined }}
     >
       <style>{hideScrollbarStyles}</style>
       <div className="flex items-center justify-between mb-3">

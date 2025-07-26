@@ -316,55 +316,352 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
 
   // Remove all dnd-kit imports and logic
 
+  const getCurrentWeek = () => {
+    const today = new Date();
+    const currentDayOfWeek = today.getDay();
+    
+    const monday = new Date(today);
+    const daysToSubtract = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+    monday.setDate(today.getDate() - daysToSubtract);
+    
+    const weekDays = [];
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      
+      weekDays.push({
+        day: dayNames[i],
+        date: date.getDate(),
+        completed: false, // All dates start as gray
+        current: date.toDateString() === today.toDateString(),
+        fullDate: date
+      });
+    }
+    
+    return weekDays;
+  };
+
+  // Helper for calendar grid icons/colors
+  const getCalendarDayStatus = (
+    date: Date,
+    completions: { [date: string]: Set<number> },
+    habits: any[],
+    today: Date,
+    selectedDate: Date
+  ): 'future' | 'today' | 'complete' | 'partial' | 'missed' | 'default' => {
+    if (date > today) return 'future';
+    const dateString = date.toDateString();
+    if (date.toDateString() === today.toDateString()) return 'today';
+    if (completions[dateString]?.size === habits.length && habits.length > 0) return 'complete';
+    if (completions[dateString]?.size > 0) return 'partial';
+    if (date < today) return 'missed';
+    return 'default';
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white relative pb-32">
-      <style>{scrollbarStyles}</style>
-      {/* Header - Dashboard style */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="ipad-container">
-          <div className="flex items-center justify-between py-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">{getGreeting()}, {user?.email?.split('@')[0]}!</h1>
-              <p className="text-gray-600">Let's make today productive</p>
+    <div className="bg-[#181e29] min-h-screen flex flex-col items-center py-8">
+      <div className="w-full max-w-full px-2 sm:px-4 md:px-8 lg:px-16 xl:px-32 mx-auto">
+        {/* Top Row: Quote, Week View, Calendar */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 mb-8">
+          {/* Left: Quote + Week View stacked */}
+          <div className="flex flex-col gap-8 h-full w-full">
+            {/* Quote Card */}
+            <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-8 py-8 flex flex-col items-center justify-center text-center min-h-[160px] w-full h-full">
+              <span className="text-yellow-400 text-3xl mb-2 font-bold">”</span>
+              <p className="text-lg md:text-xl text-[#cfd8e3] italic mb-2">"The only way to do great work is to love what you do."</p>
+              <p className="text-base font-bold text-white">- Steve Jobs</p>
             </div>
-            <div className="flex items-center space-x-4">
-              {/* Optionally, add a Home button if needed */}
-              <button
-                onClick={handleSignOut}
-                className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="hidden sm:inline">Sign Out</span>
-              </button>
+            {/* Week View Card */}
+            <div className="flex-1 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800 rounded-2xl px-6 py-5 flex flex-col justify-center min-h-[160px] w-full relative overflow-hidden shadow-sm border border-slate-600/30">
+              {/* Subtle animated background pattern */}
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 animate-pulse"></div>
+              </div>
+              
+              <div className="mb-4 relative z-10">
+                <div className="flex items-center space-x-2 mb-1">
+                  <div className="w-1.5 h-1.5 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full animate-pulse"></div>
+                  <span className="font-semibold text-white text-base">Week Progress</span>
+                </div>
+                <div className="text-gray-300 text-xs">Track your daily achievements</div>
+              </div>
+              
+              <div className="flex justify-between items-center relative z-10">
+                {getCurrentWeek().map((day, index) => {
+                  const dateString = day.fullDate.toDateString();
+                  const completedHabits = completions[dateString]?.size || 0;
+                  const totalHabits = habits.length;
+                  const progress = totalHabits > 0 ? completedHabits / totalHabits : 0;
+                  const isSelected = dateString === selectedDate.toDateString();
+                  const isToday = day.fullDate.toDateString() === new Date().toDateString();
+                  const isFuture = day.fullDate > new Date();
+                  
+                  return (
+                    <div key={day.date} className="flex flex-col items-center space-y-1.5">
+                      {/* Day label */}
+                      <span className={`text-xs font-medium transition-all duration-150 ${
+                        isSelected ? 'text-blue-400 font-bold' :
+                        isToday ? 'text-yellow-400 font-semibold' : 'text-gray-400'
+                      }`}>
+                        {day.day}
+                      </span>
+                      
+                      {/* Main progress circle */}
+                      <div className="relative group">
+                        <button
+                          className={`
+                            relative w-10 h-10 rounded-full flex items-center justify-center 
+                            transition-all duration-150 ease-out transform
+                            ${isSelected ? 'scale-110 ring-3 ring-blue-400 shadow-lg' : 'hover:scale-105 hover:shadow-sm'}
+                            ${isFuture ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+                            ${isSelected ? 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg' :
+                              progress === 1 ? 'bg-gradient-to-br from-green-500 to-emerald-600 shadow-sm' : 
+                              progress > 0 ? 'bg-gradient-to-br from-orange-500 to-red-500 shadow-sm' :
+                              'bg-slate-600 border border-slate-500 shadow-sm'}
+                          `}
+                          onClick={() => !isFuture && setSelectedDate(day.fullDate)}
+                          disabled={isFuture}
+                        >
+                          {/* Animated progress ring */}
+                          <svg className="absolute inset-0 w-10 h-10 transform -rotate-90" viewBox="0 0 40 40">
+                            <circle
+                              cx="20"
+                              cy="20"
+                              r="16"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              fill="none"
+                              className="text-slate-500"
+                              strokeDasharray="100.5"
+                              strokeDashoffset="100.5"
+                            />
+                            <circle
+                              cx="20"
+                              cy="20"
+                              r="16"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              fill="none"
+                              className={`transition-all duration-400 ease-out ${
+                                progress === 1 ? 'text-green-400' : 'text-orange-400'
+                              }`}
+                              strokeDasharray="100.5"
+                              strokeDashoffset={100.5 - (100.5 * progress)}
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          
+                          {/* Center content */}
+                          <div className="relative z-10 flex items-center justify-center">
+                            {isSelected ? (
+                              <span className="text-white text-sm font-bold">✓</span>
+                            ) : progress === 1 ? (
+                              <span className="text-white text-sm font-bold animate-pulse">✓</span>
+                            ) : progress > 0 ? (
+                              <span className="text-white text-xs font-semibold">{Math.round(progress * 100)}%</span>
+                            ) : (
+                              <span className="text-gray-300 text-xs font-medium">{day.date}</span>
+                            )}
+                          </div>
+                          
+                          {/* Subtle glow effect for completed */}
+                          {progress === 1 && (
+                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-green-400/10 to-emerald-500/10 animate-pulse"></div>
+                          )}
+                        </button>
+                        
+                        {/* Hover tooltip */}
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-800/90 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-all duration-100 pointer-events-none whitespace-nowrap z-20 shadow-lg">
+                          {completedHabits}/{totalHabits} habits completed
+                        </div>
+                      </div>
+                      
+                      {/* Date number */}
+                      <span className={`text-xs font-medium transition-all duration-150 ${
+                        isSelected ? 'text-blue-400 font-bold' :
+                        isToday ? 'text-yellow-400 font-semibold' : 'text-gray-400'
+                      }`}>
+                        {day.date}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Subtle bottom border */}
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
+            </div>
+          </div>
+          {/* Right: Calendar Card */}
+          <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-12 py-6 flex flex-col items-center justify-center min-h-[340px] w-full h-full">
+            <div className="flex items-center justify-between w-full mb-4">
+              <h2 className="text-white text-xl font-bold">{selectedDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
+              <div className="flex space-x-2">
+                <button className="p-2 rounded-full hover:bg-[#232b3b]" title="Previous Month">
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke="#cfd8e3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+                <button className="p-2 rounded-full hover:bg-[#232b3b]" title="Next Month">
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke="#cfd8e3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-2 w-full mb-2">
+              {/* Unified weekday headers and date cells for perfect alignment */}
+              {(() => {
+                const grid: React.ReactNode[] = [];
+                ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach((d) => {
+                  grid.push(<div key={d} className="text-[#cfd8e3] text-xs text-center font-semibold w-10 h-10 flex items-center justify-center">{d}</div>);
+                });
+                const month: number = selectedDate.getMonth();
+                const year: number = selectedDate.getFullYear();
+                const daysInMonth: number = new Date(year, month + 1, 0).getDate();
+                const firstDayOfMonth: number = new Date(year, month, 1).getDay();
+                const days: React.ReactNode[] = [];
+                // Remove empty cells before the 1st
+                // for (let i = 0; i < firstDayOfMonth; i++) {
+                //   days.push(
+                //     <div key={`empty-${i}`} className="flex flex-col items-center w-10">
+                //       <span className="text-[10px] font-semibold text-[#cfd8e3] mb-1"></span>
+                //       <div className="w-10 h-10 rounded-md border-2 border-gray-500 bg-transparent flex items-center justify-center"></div>
+                //     </div>
+                //   );
+                // }
+                for (let day = 1; day <= daysInMonth; day++) {
+                  const date = new Date(year, month, day);
+                  const dateString = date.toDateString();
+                  const today = new Date(new Date().setHours(0, 0, 0, 0));
+                  const isCompleted = completions[dateString]?.size === habits.length && habits.length > 0;
+                  const isMissed = completions[dateString]?.size > 0 && completions[dateString]?.size < habits.length;
+                  const isSelected = dateString === selectedDate.toDateString();
+                  const isPastDate = date < today;
+                  const isFutureDate = date > today;
+                  const isToday = date.getTime() === today.getTime();
+                  
+                  let border = 'border-2 border-gray-500 bg-transparent';
+                  if (isCompleted) border = 'border-2 border-green-400 bg-transparent';
+                  else if (isMissed) border = 'border-2 border-red-400 bg-transparent';
+                  else if (isSelected) border = 'border-2 border-yellow-400 bg-transparent';
+                  
+                  let content: React.ReactNode = '';
+                  if (isCompleted) {
+                    content = <span className="text-green-400 text-lg font-bold">✓</span>;
+                  } else if (isMissed) {
+                    content = <span className="text-red-400 text-lg font-bold">✗</span>;
+                  } else if (isPastDate) {
+                    content = <span className="text-red-400 text-lg font-bold">✗</span>;
+                  } else if (isToday) {
+                    content = <span className="text-green-400 text-lg font-bold">✓</span>;
+                  } else if (isFutureDate) {
+                    content = <span className="text-white text-sm font-bold"></span>;
+                  }
+                  
+                  const handleCalendarDayClick = async (e: React.MouseEvent | React.TouchEvent) => {
+                    e.preventDefault();
+                    setSelectedDate(date);
+                    
+                    // Toggle completion status for the selected date
+                    const currentCompletions = completions[dateString] || new Set();
+                    const isCurrentlyCompleted = currentCompletions.size === habits.length && habits.length > 0;
+                    
+                    if (isCurrentlyCompleted) {
+                      // Remove all completions for this date
+                      const updatedCompletions = { ...completions };
+                      delete updatedCompletions[dateString];
+                      setCompletions(updatedCompletions);
+                      
+                      // Remove from database
+                      if (user) {
+                        await supabase
+                          .from('habit_completions')
+                          .delete()
+                          .eq('user_id', user.id)
+                          .eq('date', dateString);
+                      }
+                    } else {
+                      // Mark all habits as completed for this date
+                      const newCompletions = new Set(Array.from({ length: habits.length }, (_, i) => habits[i].id));
+                      setCompletions(prev => ({ ...prev, [dateString]: newCompletions }));
+                      
+                      // Add to database
+                      if (user && habits.length > 0) {
+                        const completionData = habits.map(habit => ({
+                          user_id: user.id,
+                          habit_id: habit.id,
+                          date: dateString
+                        }));
+                        
+                        await supabase
+                          .from('habit_completions')
+                          .upsert(completionData, { onConflict: 'user_id,habit_id,date' });
+                      }
+                    }
+                    
+                    // Refresh completions data
+                    fetchCompletionsForYear();
+                  };
+                  
+                  days.push(
+                    <div key={day} className="flex flex-col items-center w-10">
+                      <span className="text-[10px] font-semibold text-[#cfd8e3] mb-1">{day}</span>
+                      <div
+                        className={`w-10 h-10 rounded-md flex items-center justify-center ${border} cursor-pointer transition-all duration-200 touch-manipulation`}
+                        onClick={handleCalendarDayClick}
+                        onTouchStart={handleCalendarDayClick}
+                        style={{ 
+                          WebkitTapHighlightColor: 'transparent',
+                          touchAction: 'manipulation'
+                        }}
+                      >
+                        {content}
+                      </div>
+                    </div>
+                  );
+                }
+                // Remove empty cells after the last day
+                // const totalCells = firstDayOfMonth + daysInMonth;
+                // const currentWeekEnd = Math.ceil(totalCells / 7) * 7;
+                // const extraCells = currentWeekEnd - totalCells;
+                // for (let i = 0; i < extraCells; i++) {
+                //   days.push(
+                //     <div key={`post-empty-${i}`} className="flex flex-col items-center w-10">
+                //       <span className="text-[10px] font-semibold text-[#cfd8e3] mb-1"></span>
+                //       <div className="w-10 h-10 rounded-md border-2 border-gray-500 bg-transparent flex items-center justify-center"></div>
+                //     </div>
+                //   );
+                // }
+                return days;
+              })()}
             </div>
           </div>
         </div>
-      </div>
-      {/* App Preview Section */}
-      <section className="py-16 md:py-24 px-4 md:px-8 bg-black">
-        <div className="max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto">
-          {/* App Interface Preview */}
-          <div className="max-w-md md:max-w-lg mx-auto bg-gray-900 rounded-3xl p-6 md:p-10 shadow-2xl">
-            {/* TopBar Widget */}
-            <TopBar />
-            
-            {/* DaySelector Widget */}
-            <DaySelector
-              completions={completions}
-              totalHabits={habits.length}
-              selectedDate={selectedDate}
-              onDateChange={(date: Date) => setSelectedDate(date)}
-            />
-
-            {/* Habit Cards */}
-            {/* Remove all dnd-kit imports and logic */}
-            <div className="space-y-4">
-              {habits.length === 0 ? (
-                <div className="text-center text-gray-400">No habits yet. Add your first habit!</div>
-              ) : (
-                habits.map((habit) => (
+        {/* Habit Tracker Section */}
+        <div className="rounded-2xl bg-[#232b3b] px-4 md:px-8 py-6 mt-8 w-full" style={{ minHeight: '260px' }}>
+          <div className="flex items-center mb-4">
+            <span className="text-white font-bold text-lg">Habit Tracker</span>
+            <span className="ml-auto text-white/40 text-2xl cursor-pointer">...</span>
+          </div>
+          {/* Habit cards row */}
+          <div className="flex flex-row items-center w-full flex-nowrap overflow-x-auto no-scrollbar" style={{ minHeight: '180px' }}>
+            {habits.length === 0 ? (
+              <div className="text-center text-gray-400 flex items-center justify-center w-full">No habits yet. Add your first habit!</div>
+            ) : (
+              habits.map((habit, idx) => (
+                <div
+                  key={habit.id}
+                  style={{
+                    width: 340,
+                    minWidth: "32%",
+                    maxWidth: "50%",
+                    flexShrink: 0,
+                    flexGrow: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginRight: idx !== habits.length - 1 ? 24 : 0
+                  }}
+                >
                   <HabitCard
-                    key={habit.id}
                     habit={{ ...habit, completions: habitCompletions[habit.id] || [] }}
                     selectedDate={selectedDate}
                     isCompleted={!!completions[selectedDate.toDateString()]?.has(habit.id)}
@@ -385,49 +682,45 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                     }}
                     onEdit={setEditingHabit}
                   />
-                ))
-              )}
-            </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      </section>
-      {/* Footer */}
-      <Footer onAdd={() => setShowAddModal(true)} onStreaks={() => setShowStreaks(true)} />
-      {/* AddHabitModal */}
-      {(showAddModal && user && !editingHabit) && (
-        <AddHabitModal
-          onClose={() => setShowAddModal(false)}
-          onAdd={fetchHabits}
-          user={user}
-        />
-      )}
-      {editingHabit && user && (
-        <AddHabitModal
-          onClose={() => setEditingHabit(null)}
-          onAdd={() => {
-            fetchHabits();
-            fetchCompletionsForYear();
-            setEditingHabit(null);
-          }}
-          user={user}
-          habit={editingHabit}
-          editMode={true}
-        />
-      )}
-      {/* Streaks/History Modal Placeholder */}
-      {showStreaks && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 text-black max-w-md w-full relative">
-            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800" onClick={() => setShowStreaks(false)}>
-              ×
-            </button>
-            <h2 className="text-2xl font-bold mb-4">Streaks & History</h2>
-            <p>Coming soon: View all your past streaks and completed events here!</p>
-          </div>
-        </div>
-      )}
+        {/* Add/Edit Habit Modals (existing logic) */}
+        {(showAddModal && user && !editingHabit) && (
+          <AddHabitModal
+            onClose={() => setShowAddModal(false)}
+            onAdd={fetchHabits}
+            user={user}
+          />
+        )}
+        {editingHabit && user && (
+          <AddHabitModal
+            onClose={() => setEditingHabit(null)}
+            onAdd={() => {
+              fetchHabits();
+              fetchCompletionsForYear();
+              setEditingHabit(null);
+            }}
+            user={user}
+            habit={editingHabit}
+            editMode={true}
+          />
+        )}
+      </div>
+      {/* Floating Add Button at the bottom center of the page */}
+      <button
+        className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white text-gray-900 rounded-full h-16 w-16 flex items-center justify-center border-4 border-[#232b3b] z-50 text-4xl shadow-xl"
+        onClick={() => setShowAddModal(true)}
+        aria-label="Add new habit"
+      >
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="18" fill="#232b3b"/><path d="M18 11v14M11 18h14" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/></svg>
+      </button>
     </div>
   );
 };
 
 export default LandingPage; 
+
+export {} 
