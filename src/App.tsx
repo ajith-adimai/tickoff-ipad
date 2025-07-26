@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient';
 import { User } from '@supabase/supabase-js';
 import Auth from './components/Auth';
 import LandingPage from './components/LandingPage';
+import AppIcon from './components/AppIcon';
 
 import { motion } from 'framer-motion';
 
@@ -48,14 +49,20 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-700">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5 }}
           className="text-center"
         >
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 mx-auto mb-4"
+          >
+            <AppIcon size={64} className="text-white" />
+          </motion.div>
           <h2 className="text-white text-xl font-semibold">Loading TickOff...</h2>
         </motion.div>
       </div>

@@ -23,6 +23,7 @@ import { User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 import AddHabitModal from './AddHabitModal';
 import HabitCard from './HabitCard';
+import AppIcon from './AppIcon';
 // Remove all dnd-kit imports and logic
 
 // CSS for hiding scrollbar
@@ -49,7 +50,7 @@ const TopBar: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 md:w-10 md:h-10 bg-white/20 rounded-full flex items-center justify-center">
-            <Calendar className="w-4 h-4 md:w-5 md:h-5 text-white" />
+            <AppIcon size={20} className="text-white" />
           </div>
           <div>
             <span className="text-white font-medium text-base md:text-lg">

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import AppIcon from './AppIcon';
 
 interface AuthProps {
   onBackToLanding?: () => void;
@@ -141,9 +142,9 @@ const Auth: React.FC<AuthProps> = ({ onBackToLanding }) => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center mx-auto mb-4"
+              className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg"
             >
-              <CheckCircle className="w-10 h-10 text-white" />
+              <AppIcon size={48} className="text-white" />
             </motion.div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2">TickOff</h1>
             <p className="text-gray-600">Track your habits, achieve your goals</p>
