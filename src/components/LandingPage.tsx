@@ -359,6 +359,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   const [isLoading, setIsLoading] = useState(true);
   const [showWeekHighlight, setShowWeekHighlight] = useState(true);
   const [currentWeekHabitId, setCurrentWeekHabitId] = useState<number | null>(null);
+  const [showHabitDropdown, setShowHabitDropdown] = useState(false);
+  const [selectedHabitsForCalendar, setSelectedHabitsForCalendar] = useState<Set<number>>(new Set());
+  const [calendarViewDate, setCalendarViewDate] = useState(new Date()); // For calendar month navigation
   const habitContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-hide week highlight after 3 seconds
@@ -371,7 +374,41 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
     }
   }, [showWeekHighlight]);
 
-  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.habit-dropdown')) {
+        setShowHabitDropdown(false);
+      }
+    };
+
+    if (showHabitDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showHabitDropdown]);
+
+  // Calendar navigation functions
+  const goToPreviousMonth = () => {
+    setCalendarViewDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(prev.getMonth() - 1);
+      return newDate;
+    });
+  };
+
+  const goToNextMonth = () => {
+    setCalendarViewDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(prev.getMonth() + 1);
+      return newDate;
+    });
+  };
+
+  const goToCurrentMonth = () => {
+    setCalendarViewDate(new Date());
+  };
 
   const fetchHabits = async () => {
     if (!user) return;
@@ -505,8 +542,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               <div className="flex justify-between items-center relative z-10">
                 {getCurrentWeek().map((day, index) => {
                   const dateString = day.fullDate.toDateString();
-                  const completedHabits = completions[dateString]?.size || 0;
-                  const totalHabits = habits.length;
+                  const selectedHabits = habits.filter(habit => selectedHabitsForCalendar.has(habit.id));
+                  const totalHabits = selectedHabits.length || habits.length; // Use selected habits or all habits if none selected
+                  const completedHabits = selectedHabits.length > 0 
+                    ? selectedHabits.filter(habit => completions[dateString]?.has(habit.id)).length
+                    : completions[dateString]?.size || 0;
                   const progress = totalHabits > 0 ? completedHabits / totalHabits : 0;
                   const isSelected = dateString === selectedDate.toDateString();
                   const isToday = day.fullDate.toDateString() === new Date().toDateString();
@@ -630,12 +670,90 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
           ) : (
             <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-12 py-6 flex flex-col items-center justify-center min-h-[340px] w-full h-full">
             <div className="flex items-center justify-between w-full mb-4">
-              <h2 className="text-white text-xl font-bold">{selectedDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
-              <div className="flex space-x-2">
-                <button className="p-2 rounded-full hover:bg-[#232b3b]" title="Previous Month">
+              <h2 className="text-white text-xl font-bold">{calendarViewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
+              <div className="flex items-center space-x-2">
+                {/* Habit Dropdown */}
+                <div className="relative habit-dropdown">
+                  <button
+                    onClick={() => setShowHabitDropdown(!showHabitDropdown)}
+                    className="flex items-center space-x-1 px-3 py-1 bg-[#1a1f2e] text-white text-sm rounded-lg border border-gray-600 hover:bg-[#2a2f3e] transition-colors"
+                  >
+                    <span>Habits ({selectedHabitsForCalendar.size || habits.length})</span>
+                    <svg 
+                      className={`w-4 h-4 transition-transform ${showHabitDropdown ? 'rotate-180' : ''}`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {showHabitDropdown && (
+                    <div className="absolute top-full left-0 mt-1 w-64 bg-[#1a1f2e] border border-gray-600 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                      <div className="p-2">
+                        <div className="text-white text-sm font-semibold mb-2 px-2">Your Habits</div>
+                        {habits.length === 0 ? (
+                          <div className="text-gray-400 text-sm px-2 py-1">No habits yet</div>
+                        ) : (
+                          habits.map((habit) => {
+                            const isSelected = selectedHabitsForCalendar.has(habit.id);
+                            return (
+                              <div 
+                                key={habit.id} 
+                                className="flex items-center space-x-2 px-2 py-1 hover:bg-[#2a2f3e] rounded cursor-pointer"
+                                onClick={() => {
+                                  setSelectedHabitsForCalendar(prev => {
+                                    const newSet = new Set(prev);
+                                    if (isSelected) {
+                                      newSet.delete(habit.id);
+                                    } else {
+                                      newSet.add(habit.id);
+                                    }
+                                    return newSet;
+                                  });
+                                }}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <div 
+                                    className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                      isSelected ? 'bg-yellow-400 border-yellow-400' : 'border-gray-500'
+                                    }`}
+                                  >
+                                    {isSelected && (
+                                      <svg className="w-3 h-3 text-black" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: habit.color }}
+                                  ></div>
+                                  <span className="text-white text-sm truncate">{habit.title}</span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <button 
+                  onClick={goToPreviousMonth}
+                  className="p-2 rounded-full hover:bg-[#232b3b] transition-colors" 
+                  title="Previous Month"
+                >
                   <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke="#cfd8e3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </button>
-                <button className="p-2 rounded-full hover:bg-[#232b3b]" title="Next Month">
+                <button 
+                  onClick={goToNextMonth}
+                  className="p-2 rounded-full hover:bg-[#232b3b] transition-colors" 
+                  title="Next Month"
+                >
                   <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke="#cfd8e3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </button>
               </div>
@@ -647,8 +765,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                 ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach((d) => {
                   grid.push(<div key={d} className="text-[#cfd8e3] text-xs text-center font-semibold w-10 h-10 flex items-center justify-center">{d}</div>);
                 });
-                const month: number = selectedDate.getMonth();
-                const year: number = selectedDate.getFullYear();
+                const month: number = calendarViewDate.getMonth();
+                const year: number = calendarViewDate.getFullYear();
                 const daysInMonth: number = new Date(year, month + 1, 0).getDate();
                 const firstDayOfMonth: number = new Date(year, month, 1).getDay();
                 const days: React.ReactNode[] = [];
@@ -667,19 +785,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                   const dateForDB = formatDateLocal(date);
                   const today = new Date(new Date().setHours(0, 0, 0, 0));
                   
-                  // Use habitCompletions to determine status (same as grid)
-                  const completedHabitsForDate = habits.filter(habit => 
+                  // Use habitCompletions to determine status (same as grid) - only for selected habits
+                  const selectedHabits = habits.filter(habit => selectedHabitsForCalendar.has(habit.id));
+                  const completedHabitsForDate = selectedHabits.filter(habit => 
                     habitCompletions[habit.id]?.includes(dateForDB)
                   ).length;
-                  const isCompleted = completedHabitsForDate === habits.length && habits.length > 0;
-                  const isMissed = completedHabitsForDate > 0 && completedHabitsForDate < habits.length;
+                  const isCompleted = completedHabitsForDate === selectedHabits.length && selectedHabits.length > 0;
+                  const isMissed = completedHabitsForDate > 0 && completedHabitsForDate < selectedHabits.length;
                   const isSelected = dateString === selectedDate.toDateString();
                   const isPastDate = date < today;
                   const isFutureDate = date > today;
                   const isToday = date.getTime() === today.getTime();
+                  const isPastMonth = date < new Date(today.getFullYear(), today.getMonth(), 1);
                   
                   let border = 'border-2 border-gray-500 bg-transparent';
-                  if (isCompleted) border = 'border-2 border-green-400 bg-green-400/10';
+                  if (isPastMonth) border = 'border-2 border-gray-600 bg-gray-700/20';
+                  else if (isCompleted) border = 'border-2 border-green-400 bg-green-400/10';
                   else if (isMissed) border = 'border-2 border-red-400 bg-red-400/10';
                   else if (isSelected) border = 'border-2 border-yellow-400 bg-yellow-400/10';
                   
@@ -700,15 +821,27 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                     e.preventDefault();
                     e.stopPropagation();
                     if (isFutureDate) return;
+                    
+                    // Prevent modifications on past dates (not current month)
+                    const today = new Date();
+                    const isCurrentMonth = date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+                    const isPastMonth = date < new Date(today.getFullYear(), today.getMonth(), 1);
+                    
+                    if (isPastMonth) {
+                      // Allow viewing but not modifying past months
+                      setSelectedDate(date);
+                      return;
+                    }
 
                     const dateForWeekProgress = date.toDateString();
                     const dateForDB = formatDateLocal(date);
 
-                    // Check if all habits are completed for this date using habitCompletions (same as grid)
-                    const completedHabitsForDate = habits.filter(habit => 
+                    // Check if all selected habits are completed for this date using habitCompletions (same as grid)
+                    const selectedHabits = habits.filter(habit => selectedHabitsForCalendar.has(habit.id));
+                    const completedHabitsForDate = selectedHabits.filter(habit => 
                       habitCompletions[habit.id]?.includes(dateForDB)
                     ).length;
-                    const isAllCompleted = completedHabitsForDate === habits.length && habits.length > 0;
+                    const isAllCompleted = completedHabitsForDate === selectedHabits.length && selectedHabits.length > 0;
 
                     // Optimistically update state
                     if (isAllCompleted) {
@@ -720,7 +853,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                       });
                       setHabitCompletions(prev => {
                         const updated = { ...prev };
-                        habits.forEach(habit => {
+                        selectedHabits.forEach(habit => {
                           if (updated[habit.id]) {
                             updated[habit.id] = updated[habit.id].filter((d: string) => d !== dateForDB);
                           }
@@ -742,15 +875,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                         }
                       }
                     } else {
-                      // Add completions for all habits for this date
+                      // Add completions for all selected habits for this date
                       setCompletions(prev => {
                         const updated = { ...prev };
-                        updated[dateForWeekProgress] = new Set(habits.map(habit => habit.id));
+                        updated[dateForWeekProgress] = new Set(selectedHabits.map(habit => habit.id));
                         return updated;
                       });
                       setHabitCompletions(prev => {
                         const updated = { ...prev };
-                        habits.forEach(habit => {
+                        selectedHabits.forEach(habit => {
                           if (!updated[habit.id]) updated[habit.id] = [];
                           if (!updated[habit.id].includes(dateForDB)) {
                             updated[habit.id] = [...updated[habit.id], dateForDB];
@@ -761,8 +894,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                       // Don't call setHabits to avoid triggering useEffect
                       // setHabits(hs => [...hs]);
                       // Add to DB
-                      if (user && habits.length > 0) {
-                        const completionData = habits.map(habit => ({
+                      if (user && selectedHabits.length > 0) {
+                        const completionData = selectedHabits.map(habit => ({
                           user_id: user.id,
                           habit_id: habit.id,
                           date: dateForDB
@@ -796,7 +929,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                       <span className="text-[10px] font-semibold text-[#cfd8e3] mb-1">{day}</span>
                       <div
                         className={`w-10 h-10 rounded-md flex items-center justify-center ${border} transition-all duration-150 ${
-                          isFutureDate ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-105 active:scale-95'
+                          isFutureDate ? 'opacity-50 cursor-not-allowed' : 
+                          isPastMonth ? 'opacity-70 cursor-default' : 
+                          'cursor-pointer hover:scale-105 active:scale-95'
                         } touch-manipulation select-none focus:outline-none focus:ring-2 focus:ring-blue-400`}
                         onClick={handleCalendarDayClick}
                         onTouchEnd={handleCalendarDayClick}
@@ -883,28 +1018,35 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                   if (!a.isCurrentWeek && b.isCurrentWeek) return 1;
                   return a.originalIndex - b.originalIndex; // Maintain original order within groups
                 })
-                .map(({ habit, isCurrentWeek }, displayIndex) => (
-                  <div
-                    key={habit.id}
-                    id={`habit-${habit.id}`}
-                    className={`transition-all duration-300`}
-                    style={{
-                      width: 340,
-                      minWidth: "32%",
-                      maxWidth: "50%",
-                      flexShrink: 0,
-                      flexGrow: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      marginRight: displayIndex !== habits.length - 1 ? 24 : 0,
-                      scrollSnapAlign: 'start'
-                    }}
-                  >
+                .map(({ habit, isCurrentWeek }, displayIndex) => {
+                  // Only show habit if it's selected in dropdown or no habits are selected
+                  const shouldShow = selectedHabitsForCalendar.size === 0 || selectedHabitsForCalendar.has(habit.id);
+                  
+                  if (!shouldShow) return null;
+                  
+                  return (
+                    <div
+                      key={habit.id}
+                      id={`habit-${habit.id}`}
+                      className={`transition-all duration-300`}
+                      style={{
+                        width: 340,
+                        minWidth: "32%",
+                        maxWidth: "50%",
+                        flexShrink: 0,
+                        flexGrow: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        marginRight: displayIndex !== habits.length - 1 ? 24 : 0,
+                        scrollSnapAlign: 'start'
+                      }}
+                    >
 
                     <HabitCard
                       habit={{ ...habit, completions: habitCompletions[habit.id] ? habitCompletions[habit.id] : [] }}
                       selectedDate={selectedDate}
                       isCompleted={!!completions[selectedDate.toDateString()]?.has(habit.id)}
+                      selectedHabitsForCalendar={selectedHabitsForCalendar}
                       onUpdate={() => {
                         if (!user) return;
                         fetchHabits();
@@ -924,7 +1066,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                       onEdit={setEditingHabit}
                     />
                   </div>
-                ))
+                );
+                })
             )}
           </div>
         </div>

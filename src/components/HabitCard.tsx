@@ -9,6 +9,7 @@ interface HabitCardProps {
   habit: any; // allow dynamic fields from Supabase
   selectedDate: Date;
   isCompleted: boolean;
+  selectedHabitsForCalendar?: Set<number>;
   onUpdate: () => void;
   onCompletionChange?: (habitId: number, completed: boolean) => void;
   onEdit?: (habit: any) => void;
@@ -19,7 +20,7 @@ const hideScrollbarStyles = `
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 `;
 
-const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted, onUpdate, onCompletionChange, onEdit }) => {
+const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted, selectedHabitsForCalendar, onUpdate, onCompletionChange, onEdit }) => {
   const [loading, setLoading] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

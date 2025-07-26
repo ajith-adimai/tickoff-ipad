@@ -14,11 +14,95 @@ const Auth: React.FC<AuthProps> = ({ onBackToLanding }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [isEmailValid, setIsEmailValid] = useState(false);
+
+  // Email validation function
+  const validateEmail = (email: string): { isValid: boolean; error: string } => {
+    // Basic email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return { isValid: false, error: 'Please enter a valid email address' };
+    }
+
+    // Check for common disposable email domains
+    const disposableDomains = [
+      'tempmail.org', 'temp-mail.org', 'guerrillamail.com', '10minutemail.com',
+      'mailinator.com', 'yopmail.com', 'throwaway.email', 'temp-mail.io',
+      'sharklasers.com', 'guerrillamailblock.com', 'pokemail.net', 'spam4.me',
+      'bccto.me', 'chacuo.net', 'dispostable.com', 'fakeinbox.com',
+      'mailnesia.com', 'mintemail.com', 'spamspot.com', 'spam.la',
+      'trashmail.net', 'getairmail.com', 'maildrop.cc', 'mailmetrash.com'
+    ];
+
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (disposableDomains.includes(domain)) {
+      return { isValid: false, error: 'Disposable email addresses are not allowed' };
+    }
+
+    // Check for minimum length
+    if (email.length < 5) {
+      return { isValid: false, error: 'Email address is too short' };
+    }
+
+    // Check for maximum length
+    if (email.length > 254) {
+      return { isValid: false, error: 'Email address is too long' };
+    }
+
+    // Check for valid characters
+    const validCharRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!validCharRegex.test(email)) {
+      return { isValid: false, error: 'Email contains invalid characters' };
+    }
+
+    // Check for consecutive dots
+    if (email.includes('..')) {
+      return { isValid: false, error: 'Email cannot contain consecutive dots' };
+    }
+
+    // Check for valid domain format
+    const domainParts = domain?.split('.');
+    if (!domainParts || domainParts.length < 2 || domainParts.some(part => part.length === 0)) {
+      return { isValid: false, error: 'Invalid domain format' };
+    }
+
+    // Check TLD length
+    const tld = domainParts[domainParts.length - 1];
+    if (tld.length < 2 || tld.length > 6) {
+      return { isValid: false, error: 'Invalid top-level domain' };
+    }
+
+    return { isValid: true, error: '' };
+  };
+
+  // Handle email input change with validation
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value;
+    setEmail(newEmail);
+    
+    if (newEmail.trim() === '') {
+      setEmailError('');
+      setIsEmailValid(false);
+      return;
+    }
+
+    const validation = validateEmail(newEmail);
+    setEmailError(validation.error);
+    setIsEmailValid(validation.isValid);
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+
+    // Client-side email validation
+    if (!isEmailValid) {
+      setMessage('Please enter a valid email address');
+      setLoading(false);
+      return;
+    }
 
     try {
       if (isSignUp) {
@@ -72,16 +156,36 @@ const Auth: React.FC<AuthProps> = ({ onBackToLanding }) => {
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Mail className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${
+                  emailError ? 'text-red-400' : isEmailValid ? 'text-green-400' : 'text-gray-400'
+                }`} />
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                  onChange={handleEmailChange}
+                  className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 ${
+                    emailError 
+                      ? 'border-red-300 focus:ring-red-500' 
+                      : isEmailValid 
+                      ? 'border-green-300 focus:ring-green-500' 
+                      : 'border-gray-300 focus:ring-primary-500'
+                  }`}
                   placeholder="Enter your email"
                   required
                 />
+                {isEmailValid && (
+                  <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400 w-5 h-5" />
+                )}
               </div>
+              {emailError && (
+                <motion.p
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-1 text-sm text-red-600"
+                >
+                  {emailError}
+                </motion.p>
+              )}
             </div>
 
             <div>
@@ -126,7 +230,7 @@ const Auth: React.FC<AuthProps> = ({ onBackToLanding }) => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
-              disabled={loading}
+              disabled={loading || !isEmailValid || email.trim() === ''}
               className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3 rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

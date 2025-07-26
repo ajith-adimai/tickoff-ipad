@@ -36,6 +36,10 @@ function App() {
         setUser(null);
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setUser(session?.user ?? null);
+      } else if (event === 'USER_UPDATED') {
+        // Handle email confirmation success
+        console.log('User email confirmed');
+        setUser(session?.user ?? null);
       }
     });
 
