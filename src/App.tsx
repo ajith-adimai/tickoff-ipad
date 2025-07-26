@@ -12,16 +12,31 @@ function App() {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const getInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getInitialSession();
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setUser(session?.user ?? null);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -60,6 +75,7 @@ function App() {
   // If logged in, show LandingPage
   return (
     <LandingPage 
+      key={user?.id} // Force re-render when user changes
       user={user}
       onGetStarted={() => {}}
       onViewDashboard={() => {}}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   CheckCircle, 
@@ -319,6 +319,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
     fetchCompletionsForYear();
   }, [user, habits]);
 
+  // Set loading to false after initial data fetch
+  useEffect(() => {
+    if (user && habits.length >= 0) {
+      setIsLoading(false);
+    }
+  }, [user, habits]);
+
   // Sync state with database when component unmounts
   useEffect(() => {
     return () => {
@@ -340,21 +347,42 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    window.location.reload();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+    }
+    // Remove window.location.reload() - let the auth listener handle the state change
   };
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showStreaks, setShowStreaks] = useState(false); // Placeholder for streaks/history modal
+  const [isLoading, setIsLoading] = useState(true);
+  const [showWeekHighlight, setShowWeekHighlight] = useState(true);
+  const [currentWeekHabitId, setCurrentWeekHabitId] = useState<number | null>(null);
+  const habitContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-hide week highlight after 3 seconds
+  useEffect(() => {
+    if (showWeekHighlight) {
+      const timer = setTimeout(() => {
+        setShowWeekHighlight(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showWeekHighlight]);
+
+  
 
   const fetchHabits = async () => {
     if (!user) return;
+    setIsLoading(true);
     const { data, error } = await supabase
       .from('habits')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     if (!error) setHabits(data || []);
+    setIsLoading(false);
   };
 
   // Remove all dnd-kit imports and logic
@@ -419,13 +447,48 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
           {/* Left: Quote + Week View stacked */}
           <div className="flex flex-col gap-8 h-full w-full">
             {/* Quote Card */}
-            <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-8 py-8 flex flex-col items-center justify-center text-center min-h-[160px] w-full h-full">
-              <span className="text-yellow-400 text-3xl mb-2 font-bold">”</span>
-              <p className="text-lg md:text-xl text-[#cfd8e3] italic mb-2">"The only way to do great work is to love what you do."</p>
-              <p className="text-base font-bold text-white">- Steve Jobs</p>
-            </div>
+            {isLoading ? (
+              <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-8 py-8 flex flex-col items-center justify-center text-center min-h-[160px] w-full h-full relative animate-pulse">
+                <div className="w-8 h-8 bg-gray-600 rounded-full mb-4"></div>
+                <div className="w-3/4 h-6 bg-gray-600 rounded mb-2"></div>
+                <div className="w-1/2 h-4 bg-gray-600 rounded"></div>
+              </div>
+            ) : (
+              <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-8 py-8 flex flex-col items-center justify-center text-center min-h-[160px] w-full h-full relative">
+                {/* Sign Out Button - Top Right Corner of Quote Card */}
+                <button
+                  onClick={handleSignOut}
+                  className="absolute top-3 right-3 p-2 bg-[#2d3748] hover:bg-[#374151] text-gray-400 hover:text-white rounded-lg transition-all duration-200 hover:scale-110 active:scale-95"
+                  title="Sign Out"
+                >
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M16 17l5-5-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                
+                <span className="text-yellow-400 text-3xl mb-2 font-bold">"</span>
+                <p className="text-lg md:text-xl text-[#cfd8e3] italic mb-2">"The only way to do great work is to love what you do."</p>
+                <p className="text-base font-bold text-white">- Steve Jobs</p>
+              </div>
+            )}
             {/* Week View Card */}
-            <div className="flex-1 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800 rounded-2xl px-6 py-5 flex flex-col justify-center min-h-[160px] w-full relative overflow-hidden shadow-sm border border-slate-600/30">
+            {isLoading ? (
+              <div className="flex-1 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800 rounded-2xl px-6 py-5 flex flex-col justify-center min-h-[160px] w-full relative overflow-hidden shadow-sm border border-slate-600/30 animate-pulse">
+                <div className="w-24 h-4 bg-gray-600 rounded mb-2"></div>
+                <div className="w-32 h-3 bg-gray-600 rounded mb-6"></div>
+                <div className="flex justify-between items-center">
+                  {[...Array(7)].map((_, i) => (
+                    <div key={i} className="flex flex-col items-center space-y-2">
+                      <div className="w-6 h-3 bg-gray-600 rounded"></div>
+                      <div className="w-10 h-10 bg-gray-600 rounded-full"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800 rounded-2xl px-6 py-5 flex flex-col justify-center min-h-[160px] w-full relative overflow-hidden shadow-sm border border-slate-600/30">
               {/* Subtle animated background pattern */}
               <div className="absolute inset-0 opacity-10">
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 animate-pulse"></div>
@@ -544,9 +607,28 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               {/* Subtle bottom border */}
               <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
             </div>
+            )}
           </div>
           {/* Right: Calendar Card */}
-          <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-12 py-6 flex flex-col items-center justify-center min-h-[340px] w-full h-full">
+          {isLoading ? (
+            <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-12 py-6 flex flex-col items-center justify-center min-h-[340px] w-full h-full animate-pulse">
+              <div className="w-32 h-6 bg-gray-600 rounded mb-4"></div>
+              <div className="grid grid-cols-7 gap-2 w-full mb-2">
+                {[...Array(7)].map((_, i) => (
+                  <div key={i} className="text-[#cfd8e3] text-xs text-center font-semibold w-10 h-10 flex items-center justify-center">
+                    <div className="w-6 h-3 bg-gray-600 rounded"></div>
+                  </div>
+                ))}
+                {[...Array(35)].map((_, i) => (
+                  <div key={i} className="flex flex-col items-center w-10">
+                    <div className="w-4 h-3 bg-gray-600 rounded mb-1"></div>
+                    <div className="w-10 h-10 bg-gray-600 rounded-md"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 rounded-2xl bg-[#232b3b] px-4 md:px-12 py-6 flex flex-col items-center justify-center min-h-[340px] w-full h-full">
             <div className="flex items-center justify-between w-full mb-4">
               <h2 className="text-white text-xl font-bold">{selectedDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
               <div className="flex space-x-2">
@@ -746,56 +828,103 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
               })()}
             </div>
           </div>
+            )}
         </div>
         {/* Habit Tracker Section */}
         <div className="rounded-2xl bg-[#232b3b] px-4 md:px-8 py-6 mt-8 w-full" style={{ minHeight: '260px' }}>
           <div className="flex items-center mb-4">
-            <span className="text-white font-bold text-lg">Habit Tracker</span>
-            <span className="ml-auto text-white/40 text-2xl cursor-pointer">...</span>
-          </div>
+                                        <span className="text-white font-bold text-lg">Habit Tracker</span>
+            </div>
           {/* Habit cards row */}
-          <div className="flex flex-row items-center w-full flex-nowrap overflow-x-auto no-scrollbar" style={{ minHeight: '180px' }}>
-            {habits.length === 0 ? (
+          <div 
+            className="flex flex-row items-center w-full flex-nowrap overflow-x-auto no-scrollbar" 
+            style={{ 
+              minHeight: '180px',
+              scrollSnapType: 'x mandatory',
+              scrollBehavior: 'smooth'
+            }}
+            ref={habitContainerRef}
+          >
+            {isLoading ? (
+              <div className="flex flex-row items-center w-full flex-nowrap overflow-x-auto no-scrollbar" style={{ minHeight: '180px' }}>
+                <div className="w-full flex flex-col items-center justify-center min-h-[180px]">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400"></div>
+                  <p className="text-white text-lg mt-4">Loading habits...</p>
+                </div>
+              </div>
+            ) : habits.length === 0 ? (
               <div className="text-center text-gray-400 flex items-center justify-center w-full">No habits yet. Add your first habit!</div>
             ) : (
-              habits.map((habit, idx) => (
-                <div
-                  key={habit.id}
-                  style={{
-                    width: 340,
-                    minWidth: "32%",
-                    maxWidth: "50%",
-                    flexShrink: 0,
-                    flexGrow: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginRight: idx !== habits.length - 1 ? 24 : 0
-                  }}
-                >
-                  <HabitCard
-                    habit={{ ...habit, completions: habitCompletions[habit.id] ? habitCompletions[habit.id] : [] }}
-                    selectedDate={selectedDate}
-                    isCompleted={!!completions[selectedDate.toDateString()]?.has(habit.id)}
-                    onUpdate={() => {
-                      if (!user) return;
-                      fetchHabits();
-                      fetchCompletionsForYear();
+              // Sort habits to put current week habits first
+              habits
+                .map((habit, idx) => {
+                  // Check if this habit belongs to current week based on recent activity
+                  const today = new Date();
+                  const weekStart = new Date(today);
+                  weekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
+                  
+                  const habitCompletionsForWeek = habitCompletions[habit.id]?.filter(date => {
+                    const completionDate = new Date(date);
+                    return completionDate >= weekStart && completionDate <= today;
+                  }) || [];
+                  
+                  const isCurrentWeek = habitCompletionsForWeek.length > 0 || idx === 0; // Highlight if has completions this week or is first habit
+                  
+                  // Set current week habit ID for scrolling
+                  if (isCurrentWeek && !currentWeekHabitId) {
+                    setCurrentWeekHabitId(habit.id);
+                  }
+                  
+                  return { habit, isCurrentWeek, originalIndex: idx };
+                })
+                .sort((a, b) => {
+                  // Sort current week habits first - this ensures they appear at the beginning
+                  if (a.isCurrentWeek && !b.isCurrentWeek) return -1;
+                  if (!a.isCurrentWeek && b.isCurrentWeek) return 1;
+                  return a.originalIndex - b.originalIndex; // Maintain original order within groups
+                })
+                .map(({ habit, isCurrentWeek }, displayIndex) => (
+                  <div
+                    key={habit.id}
+                    id={`habit-${habit.id}`}
+                    className={`transition-all duration-300`}
+                    style={{
+                      width: 340,
+                      minWidth: "32%",
+                      maxWidth: "50%",
+                      flexShrink: 0,
+                      flexGrow: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      marginRight: displayIndex !== habits.length - 1 ? 24 : 0,
+                      scrollSnapAlign: 'start'
                     }}
-                    onCompletionChange={(habitId: number, completed: boolean) => {
-                      setCompletions(prev => {
-                        const date = selectedDate.toDateString();
-                        const set = new Set(prev[date] || []);
-                        if (completed) set.add(habitId);
-                        else set.delete(habitId);
-                        return { ...prev, [date]: set };
-                      });
-                      // Don't call fetchCompletionsForYear here to avoid overriding optimistic updates
-                      // fetchCompletionsForYear();
-                    }}
-                    onEdit={setEditingHabit}
-                  />
-                </div>
-              ))
+                  >
+
+                    <HabitCard
+                      habit={{ ...habit, completions: habitCompletions[habit.id] ? habitCompletions[habit.id] : [] }}
+                      selectedDate={selectedDate}
+                      isCompleted={!!completions[selectedDate.toDateString()]?.has(habit.id)}
+                      onUpdate={() => {
+                        if (!user) return;
+                        fetchHabits();
+                        fetchCompletionsForYear();
+                      }}
+                      onCompletionChange={(habitId: number, completed: boolean) => {
+                        setCompletions(prev => {
+                          const date = selectedDate.toDateString();
+                          const set = new Set(prev[date] || []);
+                          if (completed) set.add(habitId);
+                          else set.delete(habitId);
+                          return { ...prev, [date]: set };
+                        });
+                        // Don't call fetchCompletionsForYear here to avoid overriding optimistic updates
+                        // fetchCompletionsForYear();
+                      }}
+                      onEdit={setEditingHabit}
+                    />
+                  </div>
+                ))
             )}
           </div>
         </div>
