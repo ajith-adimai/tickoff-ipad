@@ -245,14 +245,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
   useEffect(() => {
     if (!user || !selectedDate) return;
     const fetchCompletions = async () => {
-      const dateString = selectedDate.toDateString();
+      // Query database with YYYY-MM-DD format
+      const dateStringForDB = selectedDate.toISOString().split('T')[0];
+      // Store in completions state with toDateString() format for week progress
+      const dateStringForState = selectedDate.toDateString();
+      
       const { data, error } = await supabase
         .from('habit_completions')
         .select('habit_id')
         .eq('user_id', user.id)
-        .eq('date', dateString);
+        .eq('date', dateStringForDB);
       if (!error) {
-        setCompletions(prev => ({ ...prev, [dateString]: new Set((data || []).map((row: any) => row.habit_id)) }));
+        setCompletions(prev => ({ ...prev, [dateStringForState]: new Set((data || []).map((row: any) => row.habit_id)) }));
       }
     };
     fetchCompletions();
@@ -260,31 +264,70 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
 
   // Move fetchCompletionsForYear and its useEffect to the top level, not inside the render
   const fetchCompletionsForYear = async () => {
-    if (!user) return;
+    console.log('fetchCompletionsForYear called');
+    if (!user) {
+      console.log('No user, returning');
+      return;
+    }
     const year = new Date().getFullYear();
     const startOfYear = new Date(year, 0, 1).toISOString().split('T')[0];
     const endOfYear = new Date(year, 11, 31).toISOString().split('T')[0];
+    console.log('Fetching completions for year:', year, 'from', startOfYear, 'to', endOfYear);
+    
     const { data, error } = await supabase
       .from('habit_completions')
       .select('habit_id, date')
       .eq('user_id', user.id)
       .gte('date', startOfYear)
       .lte('date', endOfYear);
+    
+    console.log('Supabase response:', { data, error });
+    
     if (!error) {
+      // Update habitCompletions for habit tracker grid
       const grouped: { [habitId: number]: string[] } = {};
+      // Also update completions for week progress
+      const weekProgressCompletions: { [date: string]: Set<number> } = {};
+      
       (data || []).forEach((row: any) => {
+        // For habitCompletions (YYYY-MM-DD format)
         if (!grouped[row.habit_id]) grouped[row.habit_id] = [];
         grouped[row.habit_id].push(row.date);
+        
+        // For week progress (toDateString() format)
+        const dateForWeekProgress = new Date(row.date).toDateString();
+        if (!weekProgressCompletions[dateForWeekProgress]) {
+          weekProgressCompletions[dateForWeekProgress] = new Set();
+        }
+        weekProgressCompletions[dateForWeekProgress].add(row.habit_id);
       });
+      
+      console.log('Setting habitCompletions to:', grouped);
       setHabitCompletions(grouped);
+      setCompletions(prev => ({ ...prev, ...weekProgressCompletions }));
+      
       setTimeout(() => {
         console.log('Updated completions for all habits:', grouped);
+        console.log('Updated week progress completions:', weekProgressCompletions);
       }, 500);
+    } else {
+      console.error('Error fetching completions:', error);
     }
   };
   useEffect(() => {
+    console.log('useEffect for fetchCompletionsForYear triggered, user:', user, 'habits count:', habits.length);
     fetchCompletionsForYear();
   }, [user, habits]);
+
+  // Sync state with database when component unmounts
+  useEffect(() => {
+    return () => {
+      // Sync any pending optimistic updates with database
+      if (user) {
+        fetchCompletionsForYear();
+      }
+    };
+  }, [user]);
 
   const handleHabitToggle = (habitId: number, completed: boolean) => {
     setCompletions(prev => {
@@ -359,6 +402,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
     if (date < today) return 'missed';
     return 'default';
   };
+
+  // Helper to format date as YYYY-MM-DD in local time
+  function formatDateLocal(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
   return (
     <div className="bg-[#181e29] min-h-screen flex flex-col items-center py-8">
@@ -560,57 +611,93 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                   const handleCalendarDayClick = async (e: React.MouseEvent | React.TouchEvent) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    
-                    // Only allow interaction for past and current dates
                     if (isFutureDate) return;
-                    
-                    console.log('Calendar day clicked:', day, 'Date:', dateString);
-                    setSelectedDate(date);
-                    
-                    // Simple toggle: if completed, uncomplete; if not completed, complete
-                    const currentCompletions = completions[dateString] || new Set();
-                    const isCurrentlyCompleted = currentCompletions.size === habits.length && habits.length > 0;
-                    
-                    try {
-                      if (isCurrentlyCompleted) {
-                        // Remove all completions for this date
-                        const updatedCompletions = { ...completions };
-                        delete updatedCompletions[dateString];
-                        setCompletions(updatedCompletions);
+
+                    const dateForWeekProgress = date.toDateString();
+                    const dateForDB = formatDateLocal(date);
+
+                    // Check if all habits are completed for this date
+                    const completedSet = completions[dateForWeekProgress] || new Set();
+                    const isAllCompleted = completedSet.size === habits.length && habits.length > 0;
+
+                    // Optimistically update state
+                    if (isAllCompleted) {
+                      // Remove completions for all habits for this date
+                      setCompletions(prev => {
+                        const updated = { ...prev };
+                        delete updated[dateForWeekProgress];
+                        return updated;
+                      });
+                      setHabitCompletions(prev => {
+                        const updated = { ...prev };
+                        habits.forEach(habit => {
+                          if (updated[habit.id]) {
+                            updated[habit.id] = updated[habit.id].filter((d: string) => d !== dateForDB);
+                          }
+                        });
+                        return updated;
+                      });
+                      // Don't call setHabits to avoid triggering useEffect
+                      // setHabits(hs => [...hs]);
+                      // Remove from DB
+                      if (user) {
+                        const { error } = await supabase
+                          .from('habit_completions')
+                          .delete()
+                          .eq('user_id', user.id)
+                          .eq('date', dateForDB);
                         
-                        // Remove from database
-                        if (user) {
-                          await supabase
-                            .from('habit_completions')
-                            .delete()
-                            .eq('user_id', user.id)
-                            .eq('date', dateString);
-                        }
-                      } else {
-                        // Mark all habits as completed for this date
-                        if (user && habits.length > 0) {
-                          const completionData = habits.map(habit => ({
-                            user_id: user.id,
-                            habit_id: habit.id,
-                            date: dateString
-                          }));
-                          
-                          await supabase
-                            .from('habit_completions')
-                            .upsert(completionData, { onConflict: 'user_id,habit_id,date' });
-                          
-                          // Update local state
-                          const newCompletions = new Set(habits.map(habit => habit.id));
-                          setCompletions(prev => ({ ...prev, [dateString]: newCompletions }));
+                        if (error) {
+                          console.error('Error removing from DB:', error);
                         }
                       }
-                      
-                      // Refresh completions data
-                      setTimeout(() => {
-                        fetchCompletionsForYear();
-                      }, 100);
-                    } catch (error) {
-                      console.error('Error toggling completion:', error);
+                    } else {
+                      // Add completions for all habits for this date
+                      setCompletions(prev => {
+                        const updated = { ...prev };
+                        updated[dateForWeekProgress] = new Set(habits.map(habit => habit.id));
+                        return updated;
+                      });
+                      setHabitCompletions(prev => {
+                        const updated = { ...prev };
+                        habits.forEach(habit => {
+                          if (!updated[habit.id]) updated[habit.id] = [];
+                          if (!updated[habit.id].includes(dateForDB)) {
+                            updated[habit.id] = [...updated[habit.id], dateForDB];
+                          }
+                        });
+                        return updated;
+                      });
+                      // Don't call setHabits to avoid triggering useEffect
+                      // setHabits(hs => [...hs]);
+                      // Add to DB
+                      if (user && habits.length > 0) {
+                        const completionData = habits.map(habit => ({
+                          user_id: user.id,
+                          habit_id: habit.id,
+                          date: dateForDB
+                        }));
+                        
+                        // First delete any existing completions for this date to avoid conflicts
+                        const { error: deleteError } = await supabase
+                          .from('habit_completions')
+                          .delete()
+                          .eq('user_id', user.id)
+                          .eq('date', dateForDB);
+                        
+                        if (deleteError) {
+                          console.error('Error deleting existing completions:', deleteError);
+                        }
+                        
+                        // Then insert the new completions
+                        const { error } = await supabase
+                          .from('habit_completions')
+                          .insert(completionData);
+                        
+                        if (error) {
+                          console.error('Error adding to DB:', error);
+                        }
+                      }
                     }
                   };
                   
@@ -678,7 +765,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                   }}
                 >
                   <HabitCard
-                    habit={{ ...habit, completions: habitCompletions[habit.id] || [] }}
+                    habit={{ ...habit, completions: habitCompletions[habit.id] ? habitCompletions[habit.id] : [] }}
                     selectedDate={selectedDate}
                     isCompleted={!!completions[selectedDate.toDateString()]?.has(habit.id)}
                     onUpdate={() => {
@@ -694,7 +781,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                         else set.delete(habitId);
                         return { ...prev, [date]: set };
                       });
-                      fetchCompletionsForYear();
+                      // Don't call fetchCompletionsForYear here to avoid overriding optimistic updates
+                      // fetchCompletionsForYear();
                     }}
                     onEdit={setEditingHabit}
                   />

@@ -24,6 +24,9 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
   const [showActions, setShowActions] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Find the first Monday of the year
+  const year = new Date().getFullYear();
+
   useEffect(() => {
     checkCompletionStatus();
   }, [selectedDate, habit.id]);
@@ -48,10 +51,14 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
   const streak = habit.streak ?? 0;
 
   // Year progress grid logic (static fallback if no progress data)
-  const completionsSet = new Set((habit.completions || []).map((d: string) => d.split('T')[0])); // ensure 'YYYY-MM-DD' format
-  console.log('Habit completions for grid:', habit.title, Array.from(completionsSet));
-  // Find the first Monday of the year
-  const year = new Date().getFullYear();
+  const completionsSet = new Set((habit.completions || []).map((d: string) => {
+    // Always use YYYY-MM-DD format
+    if (d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return d;
+    }
+    // Convert to YYYY-MM-DD if needed
+    return new Date(d).toISOString().split('T')[0];
+  }));
   const startOfYear = new Date(year, 0, 1);
   let firstMonday = new Date(startOfYear);
   const day = firstMonday.getDay();
@@ -62,7 +69,6 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
 
   const todayString = new Date().toISOString().split('T')[0];
 
-  console.log('First Monday:', firstMonday.toISOString().split('T')[0]);
   for (let col = 0; col < weekCount; col++) {
     const weekStart = new Date(firstMonday);
     weekStart.setDate(firstMonday.getDate() + col * 7);
@@ -70,9 +76,9 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
       const cellDate = new Date(weekStart);
       cellDate.setDate(weekStart.getDate() + row);
       const cellDateString = cellDate.toISOString().split('T')[0];
-      if (col === 0) {
-        console.log(`Row ${row} (should be ${dayNames[row]}):`, cellDateString);
-      }
+      // if (col === 0) {
+      //   console.log(`Row ${row} (should be ${dayNames[row]}):`, cellDateString);
+      // }
     }
   }
 
@@ -102,9 +108,9 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
       if (onCompletionChange) onCompletionChange(habit.id, !isCompleted);
       if (onUpdate) await onUpdate(); // always refetch completions
       // Debug log after update
-      setTimeout(() => {
-        console.log('Habit completions for grid (after update):', habit.title, Array.from((habit.completions || []).map((d: string) => d.split('T')[0])));
-      }, 500);
+      // setTimeout(() => {
+      //   console.log('Habit completions for grid (after update):', habit.title, Array.from((habit.completions || []).map((d: string) => d.split('T')[0])));
+      // }, 500);
     } finally {
       setLoading(false);
     }
@@ -142,9 +148,9 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <button className="p-2 md:p-3 hover:bg-gray-600 rounded-lg transition-colors" title="Add Note">
+          {/* <button className="p-2 md:p-3 hover:bg-gray-600 rounded-lg transition-colors" title="Add Note">
             <LucideIcons.Star className="w-4 h-4 md:w-5 md:h-5 text-gray-300" />
-          </button>
+          </button> */}
           <button
             onClick={handleToggleCompletion}
             className="p-2 md:p-3 hover:bg-gray-600 rounded-lg transition-all duration-200 hover:scale-110"
@@ -189,6 +195,10 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
                 const cellDateString = cellDate.toISOString().split('T')[0];
                 const isFuture = cellDateString > todayString;
                 const isDayCompleted = completionsSet.has(cellDateString);
+                // Debug log for each cell
+                // if (cellDateString === '2025-07-25') {
+                //   console.log('Grid cell', cellDateString, 'isDayCompleted:', isDayCompleted, 'completionsSet:', completionsSet);
+                // }
                 weekDays.push(
                   <div
                     key={`${col}-${row}`}
