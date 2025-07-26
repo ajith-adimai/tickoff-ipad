@@ -540,9 +540,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                   const isToday = date.getTime() === today.getTime();
                   
                   let border = 'border-2 border-gray-500 bg-transparent';
-                  if (isCompleted) border = 'border-2 border-green-400 bg-transparent';
-                  else if (isMissed) border = 'border-2 border-red-400 bg-transparent';
-                  else if (isSelected) border = 'border-2 border-yellow-400 bg-transparent';
+                  if (isCompleted) border = 'border-2 border-green-400 bg-green-400/10';
+                  else if (isMissed) border = 'border-2 border-red-400 bg-red-400/10';
+                  else if (isSelected) border = 'border-2 border-yellow-400 bg-yellow-400/10';
                   
                   let content: React.ReactNode = '';
                   if (isCompleted) {
@@ -559,59 +559,75 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                   
                   const handleCalendarDayClick = async (e: React.MouseEvent | React.TouchEvent) => {
                     e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Only allow interaction for past and current dates
+                    if (isFutureDate) return;
+                    
+                    console.log('Calendar day clicked:', day, 'Date:', dateString);
                     setSelectedDate(date);
                     
-                    // Toggle completion status for the selected date
+                    // Simple toggle: if completed, uncomplete; if not completed, complete
                     const currentCompletions = completions[dateString] || new Set();
                     const isCurrentlyCompleted = currentCompletions.size === habits.length && habits.length > 0;
                     
-                    if (isCurrentlyCompleted) {
-                      // Remove all completions for this date
-                      const updatedCompletions = { ...completions };
-                      delete updatedCompletions[dateString];
-                      setCompletions(updatedCompletions);
-                      
-                      // Remove from database
-                      if (user) {
-                        await supabase
-                          .from('habit_completions')
-                          .delete()
-                          .eq('user_id', user.id)
-                          .eq('date', dateString);
-                      }
-                    } else {
-                      // Mark all habits as completed for this date
-                      const newCompletions = new Set(Array.from({ length: habits.length }, (_, i) => habits[i].id));
-                      setCompletions(prev => ({ ...prev, [dateString]: newCompletions }));
-                      
-                      // Add to database
-                      if (user && habits.length > 0) {
-                        const completionData = habits.map(habit => ({
-                          user_id: user.id,
-                          habit_id: habit.id,
-                          date: dateString
-                        }));
+                    try {
+                      if (isCurrentlyCompleted) {
+                        // Remove all completions for this date
+                        const updatedCompletions = { ...completions };
+                        delete updatedCompletions[dateString];
+                        setCompletions(updatedCompletions);
                         
-                        await supabase
-                          .from('habit_completions')
-                          .upsert(completionData, { onConflict: 'user_id,habit_id,date' });
+                        // Remove from database
+                        if (user) {
+                          await supabase
+                            .from('habit_completions')
+                            .delete()
+                            .eq('user_id', user.id)
+                            .eq('date', dateString);
+                        }
+                      } else {
+                        // Mark all habits as completed for this date
+                        if (user && habits.length > 0) {
+                          const completionData = habits.map(habit => ({
+                            user_id: user.id,
+                            habit_id: habit.id,
+                            date: dateString
+                          }));
+                          
+                          await supabase
+                            .from('habit_completions')
+                            .upsert(completionData, { onConflict: 'user_id,habit_id,date' });
+                          
+                          // Update local state
+                          const newCompletions = new Set(habits.map(habit => habit.id));
+                          setCompletions(prev => ({ ...prev, [dateString]: newCompletions }));
+                        }
                       }
+                      
+                      // Refresh completions data
+                      setTimeout(() => {
+                        fetchCompletionsForYear();
+                      }, 100);
+                    } catch (error) {
+                      console.error('Error toggling completion:', error);
                     }
-                    
-                    // Refresh completions data
-                    fetchCompletionsForYear();
                   };
                   
                   days.push(
                     <div key={day} className="flex flex-col items-center w-10">
                       <span className="text-[10px] font-semibold text-[#cfd8e3] mb-1">{day}</span>
                       <div
-                        className={`w-10 h-10 rounded-md flex items-center justify-center ${border} cursor-pointer transition-all duration-200 touch-manipulation`}
+                        className={`w-10 h-10 rounded-md flex items-center justify-center ${border} transition-all duration-150 ${
+                          isFutureDate ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-105 active:scale-95'
+                        } touch-manipulation select-none focus:outline-none focus:ring-2 focus:ring-blue-400`}
                         onClick={handleCalendarDayClick}
-                        onTouchStart={handleCalendarDayClick}
+                        onTouchEnd={handleCalendarDayClick}
                         style={{ 
                           WebkitTapHighlightColor: 'transparent',
-                          touchAction: 'manipulation'
+                          touchAction: 'manipulation',
+                          userSelect: 'none',
+                          WebkitUserSelect: 'none'
                         }}
                       >
                         {content}
