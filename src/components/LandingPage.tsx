@@ -582,9 +582,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                 for (let day = 1; day <= daysInMonth; day++) {
                   const date = new Date(year, month, day);
                   const dateString = date.toDateString();
+                  const dateForDB = formatDateLocal(date);
                   const today = new Date(new Date().setHours(0, 0, 0, 0));
-                  const isCompleted = completions[dateString]?.size === habits.length && habits.length > 0;
-                  const isMissed = completions[dateString]?.size > 0 && completions[dateString]?.size < habits.length;
+                  
+                  // Use habitCompletions to determine status (same as grid)
+                  const completedHabitsForDate = habits.filter(habit => 
+                    habitCompletions[habit.id]?.includes(dateForDB)
+                  ).length;
+                  const isCompleted = completedHabitsForDate === habits.length && habits.length > 0;
+                  const isMissed = completedHabitsForDate > 0 && completedHabitsForDate < habits.length;
                   const isSelected = dateString === selectedDate.toDateString();
                   const isPastDate = date < today;
                   const isFutureDate = date > today;
@@ -616,9 +622,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                     const dateForWeekProgress = date.toDateString();
                     const dateForDB = formatDateLocal(date);
 
-                    // Check if all habits are completed for this date
-                    const completedSet = completions[dateForWeekProgress] || new Set();
-                    const isAllCompleted = completedSet.size === habits.length && habits.length > 0;
+                    // Check if all habits are completed for this date using habitCompletions (same as grid)
+                    const completedHabitsForDate = habits.filter(habit => 
+                      habitCompletions[habit.id]?.includes(dateForDB)
+                    ).length;
+                    const isAllCompleted = completedHabitsForDate === habits.length && habits.length > 0;
 
                     // Optimistically update state
                     if (isAllCompleted) {
