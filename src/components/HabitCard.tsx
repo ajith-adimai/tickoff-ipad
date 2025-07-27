@@ -130,7 +130,7 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
   return (
     <motion.div
       layout
-      className="bg-gray-700 rounded-xl p-4 md:p-6 shadow-lg w-full"
+      className="bg-gray-700 rounded-xl p-4 md:p-6 shadow-lg w-full h-full flex flex-col"
       style={{ pointerEvents: isDeleting ? 'none' : undefined, position: 'relative' }}
       initial={{ opacity: 1, scale: 1 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -180,10 +180,10 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
         </div>
       </div>
       {/* Progress Grid */}
-      <div className="bg-gray-800 rounded-lg p-3">
-        <p className="text-xs md:text-sm text-gray-400 mb-2">Year Progress (Mon-Sun, each column is a week)</p>
-        <div className="overflow-x-auto hide-scrollbar" style={{ maxWidth: '100%' }}>
-          <div className="flex flex-col space-y-1" style={{ minWidth: 'max-content' }}>
+      <div className="bg-gray-800 rounded-lg p-3 md:p-4 flex-1 flex flex-col">
+        <p className="text-xs md:text-sm text-gray-400 mb-3 md:mb-4">Year Progress (Mon-Sun, each column is a week)</p>
+        <div className="overflow-x-auto hide-scrollbar flex-1 flex items-center justify-center" style={{ maxWidth: '100%' }}>
+          <div className="flex flex-col space-y-1.5 md:space-y-2 p-2" style={{ minWidth: 'max-content' }}>
             {dayNames.map((dayName, row) => {
               const weekDays = [];
               for (let col = 0; col < weekCount; col++) {
@@ -205,10 +205,10 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
                     key={`${col}-${row}`}
                     className="rounded-sm"
                     style={{
-                      width: '8px',
-                      height: '8px',
-                      minWidth: '8px',
-                      minHeight: '8px',
+                      width: '14px',
+                      height: '14px',
+                      minWidth: '14px',
+                      minHeight: '14px',
                       display: 'inline-block',
                       background: isFuture
                         ? '#4B5563' // gray-600
@@ -221,7 +221,7 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, selectedDate, isCompleted,
                 );
               }
               return (
-                <div key={row} className="flex gap-1">
+                <div key={row} className="flex gap-1.5 md:gap-2">
                   {weekDays}
                 </div>
               );

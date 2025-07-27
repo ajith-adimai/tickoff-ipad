@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, LogOut, Calendar, Target, TrendingUp, CheckCircle, Home } from 'lucide-react';
 import HabitCard from './HabitCard';
 import AddHabitModal from './AddHabitModal';
+import WeeklyTaskCard from './WeeklyTaskCard';
 
 interface DashboardProps {
   user: User;
@@ -158,6 +159,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onViewLanding }) => {
             </div>
           </motion.div>
         </div>
+
+        {/* Weekly Task Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mb-8"
+        >
+          <WeeklyTaskCard />
+        </motion.div>
 
         {/* Date Selector */}
         <div className="bg-white rounded-2xl p-4 shadow-lg mb-6">

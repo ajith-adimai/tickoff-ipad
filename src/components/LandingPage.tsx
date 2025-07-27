@@ -23,6 +23,7 @@ import { User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 import AddHabitModal from './AddHabitModal';
 import HabitCard from './HabitCard';
+import WeeklyTaskCard from './WeeklyTaskCard';
 import AppIcon from './AppIcon';
 // Remove all dnd-kit imports and logic
 
@@ -966,30 +967,37 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
           </div>
             )}
         </div>
-        {/* Habit Tracker Section */}
-        <div className="rounded-2xl bg-[#232b3b] px-4 md:px-8 py-6 mt-8 w-full" style={{ minHeight: '260px' }}>
-          <div className="flex items-center mb-4">
-                                        <span className="text-white font-bold text-lg">Habit Tracker</span>
+        
+        {/* Weekly Task Card and Habit Tracker Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Weekly Task Card */}
+          <div>
+            <WeeklyTaskCard />
+          </div>
+          
+          {/* Habit Tracker Section */}
+          <div className="rounded-2xl bg-[#232b3b] px-4 md:px-8 py-6 w-full flex flex-col" style={{ minHeight: '260px' }}>
+            <div className="flex items-center mb-4">
+              <span className="text-white font-bold text-lg">Habit Tracker</span>
             </div>
-          {/* Habit cards row */}
-          <div 
-            className="flex flex-row items-center w-full flex-nowrap overflow-x-auto no-scrollbar" 
-            style={{ 
-              minHeight: '180px',
-              scrollSnapType: 'x mandatory',
-              scrollBehavior: 'smooth'
-            }}
-            ref={habitContainerRef}
-          >
+            {/* Habit cards row */}
+            <div 
+              className="flex flex-row items-center w-full flex-nowrap overflow-x-auto no-scrollbar flex-1" 
+              style={{ 
+                scrollSnapType: 'x mandatory',
+                scrollBehavior: 'smooth'
+              }}
+              ref={habitContainerRef}
+            >
             {isLoading ? (
-              <div className="flex flex-row items-center w-full flex-nowrap overflow-x-auto no-scrollbar" style={{ minHeight: '180px' }}>
-                <div className="w-full flex flex-col items-center justify-center min-h-[180px]">
+              <div className="flex flex-row items-center w-full flex-nowrap overflow-x-auto no-scrollbar flex-1">
+                <div className="w-full flex flex-col items-center justify-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400"></div>
                   <p className="text-white text-lg mt-4">Loading habits...</p>
                 </div>
               </div>
             ) : habits.length === 0 ? (
-              <div className="text-center text-gray-400 flex items-center justify-center w-full">No habits yet. Add your first habit!</div>
+              <div className="text-center text-gray-400 flex items-center justify-center w-full flex-1">No habits yet. Add your first habit!</div>
             ) : (
               // Sort habits to put current week habits first
               habits
@@ -1029,7 +1037,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                     <div
                       key={habit.id}
                       id={`habit-${habit.id}`}
-                      className={`transition-all duration-300`}
+                      className={`transition-all duration-300 h-full`}
                       style={{
                         width: 340,
                         minWidth: "32%",
@@ -1037,7 +1045,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                         flexShrink: 0,
                         flexGrow: 0,
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: 'stretch',
                         marginRight: displayIndex !== habits.length - 1 ? 24 : 0,
                         scrollSnapAlign: 'start'
                       }}
@@ -1071,6 +1079,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onViewDashboard
                 })
             )}
           </div>
+        </div>
         </div>
         {/* Add/Edit Habit Modals (existing logic) */}
         {(showAddModal && user && !editingHabit) && (
